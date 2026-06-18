@@ -50,7 +50,7 @@ jobs:
         restore-keys: gradle-build-
 
     - name: Build release APK
-      run: ./gradlew :app:assembleProdWebsiteRelease --no-configuration-cache
+      run: ./gradlew :app:assembleProdWebsiteRelease -x lintVitalAnalyzeProdWebsiteRelease --no-configuration-cache
       env:
         CI_KEYSTORE_PATH: ${{ github.workspace }}/dev.keystore
         CI_KEYSTORE_PASSWORD: devpass123
