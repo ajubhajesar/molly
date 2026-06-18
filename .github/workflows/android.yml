@@ -1,0 +1,71 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/wrapper
+        key: gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+        restore-keys: gradle-deps-
+
+    - name: Cache Gradle build output
+      uses: actions/cache@v4
+      with:
+        path: ~/.gradle/caches/build-cache-*
+        key: gradle-build-${{ hashFiles('app/src/**/*.kt', 'app/src/**/*.java', 'app/src/**/*.kts') }}
+        restore-keys: gradle-build-
+
+    - name: Build debug APK
+      run: ./gradlew :app:assembleProdWebsiteDebug --no-configuration-cache
+
+    - name: Find APK
+      run: |
+        APK=$(find app/build/outputs/apk -name "*debug*.apk" | grep -v universal | head -1)
+        cp "$APK" Molly-AJ.apk
+
+    - name: Delete existing 'latest' release
+      run: gh release delete latest --yes --cleanup-tag || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Publish APK
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: "Latest Build"
+        body: "Built from ${{ github.sha }}"
+        prerelease: true
+        files: Molly-AJ.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
