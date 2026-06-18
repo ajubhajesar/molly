@@ -30,6 +30,9 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Decode keystore
+      run: base64 -d dev.keystore.b64 > dev.keystore
+
     - name: Cache Gradle dependencies
       uses: actions/cache@v4
       with:
@@ -46,12 +49,16 @@ jobs:
         key: gradle-build-${{ hashFiles('app/src/**/*.kt', 'app/src/**/*.java', 'app/src/**/*.kts') }}
         restore-keys: gradle-build-
 
-    - name: Build debug APK
-      run: ./gradlew :app:assembleProdWebsiteDebug --no-configuration-cache
+    - name: Build release APK
+      run: ./gradlew :app:assembleProdWebsiteRelease --no-configuration-cache
+      env:
+        CI_KEYSTORE_PATH: ${{ github.workspace }}/dev.keystore
+        CI_KEYSTORE_PASSWORD: devpass123
+        CI_KEYSTORE_ALIAS: dev
 
     - name: Find APK
       run: |
-        APK=$(find app/build/outputs/apk -name "*debug*.apk" | grep -v universal | head -1)
+        APK=$(find app/build/outputs/apk -name "*release*.apk" | grep -v universal | head -1)
         cp "$APK" Molly-AJ.apk
 
     - name: Delete existing 'latest' release
