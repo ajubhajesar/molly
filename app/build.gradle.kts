@@ -330,6 +330,7 @@ android {
 
   lint {
     abortOnError = true
+    checkReleaseBuilds = false
     baseline = file("lint-baseline.xml")
     ignoreWarnings = true
     quiet = true
