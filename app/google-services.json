@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "495063158381",
+    "firebase_url": "https://harlsbwo-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "harlsbwo",
+    "storage_bucket": "harlsbwo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:495063158381:android:e05df88372c80b71b0b964",
+        "android_client_info": {
+          "package_name": "com.aj.signal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC82YreDDF42dUDJ15ER-BpsAJm1WHUZtI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:495063158381:android:cf9a132a47b3ed39b0b964",
+        "android_client_info": {
+          "package_name": "fr.smarquis.fcm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC82YreDDF42dUDJ15ER-BpsAJm1WHUZtI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:495063158381:android:58e5b8aac4e761bfb0b964",
+        "android_client_info": {
+          "package_name": "org.thoughtcrime.securesms"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC82YreDDF42dUDJ15ER-BpsAJm1WHUZtI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
