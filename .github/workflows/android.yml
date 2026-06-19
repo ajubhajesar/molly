@@ -52,10 +52,9 @@ jobs:
     - name: Build release APK
       run: ./gradlew :app:assembleProdWebsiteRelease --no-configuration-cache
       env:
-        KEYSTORE_PATH: ${{ github.workspace }}/dev.keystore
-        KEYSTORE_PASSWORD: devpass123
-        KEY_ALIAS: dev
-        KEY_PASSWORD: devpass123
+        CI_KEYSTORE_PATH: ${{ github.workspace }}/dev.keystore
+        CI_KEYSTORE_PASSWORD: devpass123
+        CI_KEYSTORE_ALIAS: dev
 
     - name: Find APK
       run: |
