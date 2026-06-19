@@ -50,15 +50,17 @@ jobs:
         restore-keys: gradle-build-
 
     - name: Build release APK
-      run: ./gradlew :app:assembleProdWebsiteRelease --no-configuration-cache -x lint -Dlint.baselines.continue=true
+      run: ./gradlew :app:assembleProdWebsiteRelease --no-configuration-cache
       env:
-        CI_KEYSTORE_PATH: ${{ github.workspace }}/dev.keystore
-        CI_KEYSTORE_PASSWORD: devpass123
-        CI_KEYSTORE_ALIAS: dev
+        KEYSTORE_PATH: ${{ github.workspace }}/dev.keystore
+        KEYSTORE_PASSWORD: devpass123
+        KEY_ALIAS: dev
+        KEY_PASSWORD: devpass123
 
     - name: Find APK
       run: |
-        APK=$(find app/build/outputs/apk -name "*release*.apk" | grep -v universal | head -1)
+        APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+        echo "Found: $APK"
         cp "$APK" Molly-AJ.apk
 
     - name: Delete existing 'latest' release
