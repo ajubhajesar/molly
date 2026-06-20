@@ -45,7 +45,7 @@ jobs:
     - name: Cache Gradle build output
       uses: actions/cache@v4
       with:
-        path: ~/.gradle/caches/build-cache-*
+        path: ~/.gradle/caches/build-cache
         key: gradle-build-${{ hashFiles('app/src/**/*.kt', 'app/src/**/*.java', 'app/src/**/*.kts') }}
         restore-keys: gradle-build-
 
