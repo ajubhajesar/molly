@@ -244,10 +244,32 @@ public class MessageSender {
       onMessageSent();
       threadTable.update(allocatedThreadId, true, true);
 
+      maybeFirePingIntent(context, message.getBody());
+
       return allocatedThreadId;
     } catch (MmsException e) {
       Log.w(TAG, e);
       return threadId;
+    }
+  }
+
+  /**
+   * If the outgoing message body starts with "@ping", fire an Intent to the
+   * local FCM receiver app (fr.smarquis.fcm) to send an instant push to the
+   * peer device. This is a same-device, same-host signal only — Molly itself
+   * never touches Firebase/FCM. No-op if that app isn't installed.
+   */
+  private static void maybeFirePingIntent(@NonNull Context context, @Nullable String body) {
+    if (body == null || !body.trim().startsWith("@ping")) {
+      return;
+    }
+    try {
+      android.content.Intent intent = new android.content.Intent("fr.smarquis.fcm.ACTION_PING");
+      intent.setPackage("fr.smarquis.fcm");
+      context.sendBroadcast(intent);
+      Log.i(TAG, "Fired @ping intent to fr.smarquis.fcm");
+    } catch (Exception e) {
+      Log.w(TAG, "Failed to fire @ping intent", e);
     }
   }
 
