@@ -170,6 +170,7 @@
     <string name="NotificationDeliveryMethod__unifiedpush" translatable="false">UnifiedPush</string>
     <string name="NotificationDeliveryMethod__fcm" translatable="false">FCM (Google Play Services)</string>
     <string name="NotificationDeliveryMethod__websocket" translatable="false">WebSocket</string>
+    <string name="NotificationDeliveryMethod__no_background" translatable="false">No background notifications</string>
     <string name="IncomingMessageObserver_websocket_service">WebSocket Service</string>
     <string name="MollySocketLink_scan_the_qr_code">"Scan the QR code displayed on your MollySocket server's homepage or in the console.</string>
     <string name="MollySocketLink_try_scanning_another_image_containing_a_mollysocket_qr_code">Try scanning another image containing a MollySocket QR code.</string>

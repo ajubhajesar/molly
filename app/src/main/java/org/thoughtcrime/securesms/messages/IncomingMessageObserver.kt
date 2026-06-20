@@ -136,8 +136,9 @@ class IncomingMessageObserver(
     val registered = SignalStore.account.isRegistered
     val pushAvailable = SignalStore.account.pushAvailable
     val forceWebsocket = SignalStore.internal.isWebsocketModeForced
+    val noBackground = SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND
 
-    if (registered && (!pushAvailable || forceWebsocket)) {
+    if (registered && !noBackground && (!pushAvailable || forceWebsocket)) {
       ForegroundService.startIfNotRunning(context)
     }
 
@@ -213,15 +214,20 @@ class IncomingMessageObserver(
     val hasProxy = AppDependencies.networkManager.isProxyEnabled
     val forceWebsocket = SignalStore.internal.isWebsocketModeForced
     val websocketAlreadyOpen = isConnectionAvailable()
+    val noBackground = SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND
 
     val lastInteractionString = if (isForeground) "N/A" else timeIdle.toString() + " ms (" + (if (timeIdle < maxBackgroundTime) "within limit" else "over limit") + ")"
-    val conclusion = registered &&
-      (isForeground || timeIdle < maxBackgroundTime || !pushAvailable) &&
-      hasNetwork
+    val conclusion = if (noBackground) {
+      registered && isForeground && hasNetwork
+    } else {
+      registered &&
+        (isForeground || timeIdle < maxBackgroundTime || !pushAvailable) &&
+        hasNetwork
+    }
 
     val needsConnectionString = if (conclusion) "Needs Connection" else "Does Not Need Connection"
 
-    Log.d(TAG, "[$needsConnectionString] Network: $hasNetwork, Foreground: $isForeground, Time Since Last Interaction: $lastInteractionString, PushAvailable: $pushAvailable, WS Open or Keep-alives: $websocketAlreadyOpen, Registered: $registered, Proxy: $hasProxy, Force websocket: $forceWebsocket")
+    Log.d(TAG, "[$needsConnectionString] Network: $hasNetwork, Foreground: $isForeground, Time Since Last Interaction: $lastInteractionString, PushAvailable: $pushAvailable, WS Open or Keep-alives: $websocketAlreadyOpen, Registered: $registered, Proxy: $hasProxy, Force websocket: $forceWebsocket, NoBackground: $noBackground")
     return conclusion
   }
 
@@ -370,7 +376,14 @@ class IncomingMessageObserver(
       Log.i(TAG, "Initializing! (${this.hashCode()})")
       uncaughtExceptionHandler = this
 
-      sleepTimer = if (!SignalStore.account.pushAvailable || SignalStore.internal.isWebsocketModeForced) AlarmSleepTimer(context) else UptimeSleepTimer()
+      val noBackgroundSleep = SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND
+      sleepTimer = if (noBackgroundSleep) {
+        UptimeSleepTimer()
+      } else if (!SignalStore.account.pushAvailable || SignalStore.internal.isWebsocketModeForced) {
+        AlarmSleepTimer(context)
+      } else {
+        UptimeSleepTimer()
+      }
 
       canProcessMessages = !SignalStore.registration.restoreDecisionState.isDecisionPending
     }

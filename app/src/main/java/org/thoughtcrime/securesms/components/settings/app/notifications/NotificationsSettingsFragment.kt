@@ -362,6 +362,7 @@ open class DefaultNotificationsSettingsCallbacks(
           onNavigationUnifiedPushSettings()
         }
       }
+      NotificationDeliveryMethod.NO_BACKGROUND -> viewModel.setPreferredNotificationMethod(method)
     }
   }
 
@@ -707,6 +708,7 @@ fun NotificationsSettingsScreen(
           NotificationDeliveryMethod.FCM -> true
           NotificationDeliveryMethod.WEBSOCKET -> true
           NotificationDeliveryMethod.UNIFIEDPUSH -> !state.isLinkedDevice
+          NotificationDeliveryMethod.NO_BACKGROUND -> true
         }
       }
 
@@ -714,6 +716,7 @@ fun NotificationsSettingsScreen(
         NotificationDeliveryMethod.FCM -> !state.canReceiveFcm
         NotificationDeliveryMethod.WEBSOCKET -> false
         NotificationDeliveryMethod.UNIFIEDPUSH -> !state.canReceiveUnifiedPush
+        NotificationDeliveryMethod.NO_BACKGROUND -> false
       }
 
       item {
