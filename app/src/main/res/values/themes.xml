@@ -301,6 +301,7 @@
 
         <!-- light_colors.xml -->
         <item name="conversation_toolbar_color">?attr/colorSurface</item>
+        <item name="conversation_amoled_background">?attr/colorSurface</item>
         <item name="signal_accent_primary">@color/core_ultramarine</item>
         <item name="signal_background_primary">?attr/colorSurface</item>
         <item name="signal_background_secondary">?attr/colorSurfaceContainerLow</item>
@@ -474,7 +475,8 @@
         <item name="collapsingToolbarLayoutStyle">@style/Signal.Widget.CollapsingToolbar</item>
 
         <!-- dark_colors.xml -->
-        <item name="conversation_toolbar_color">?attr/colorSurface</item>
+        <item name="conversation_toolbar_color">@color/core_black</item>
+        <item name="conversation_amoled_background">@color/core_black</item>
         <item name="signal_accent_primary">@color/core_ultramarine_light</item>
         <item name="signal_background_primary">?attr/colorSurface</item>
         <item name="signal_background_secondary">?attr/colorSurfaceContainerLow</item>
@@ -497,7 +499,7 @@
         <item name="signal_button_secondary_text">@color/core_ultramarine_light</item>
         <item name="signal_button_secondary_text_disabled">@color/core_grey_45</item>
         <item name="signal_button_secondary_stroke">@color/core_grey_45</item>
-        <item name="conversation_compose_background">?attr/colorSurfaceContainerHigh</item>
+        <item name="conversation_compose_background">@color/core_black</item>
         <item name="contact_filter_edit_background">?attr/colorSurfaceContainerHighest</item>
         <item name="reactions_pill_selected_color">?attr/colorSurfaceContainer</item>
         <item name="qr_card_color">@color/molly_on_primary_light</item>
@@ -505,7 +507,7 @@
         <item name="conversation_item_update_text_color">?attr/colorOnSurfaceVariant</item>
         <item name="conversation_item_quote_text_color">@color/core_grey_05</item>
         <item name="conversation_item_quote_text_color_sent">?attr/colorOnSurface</item>
-        <item name="conversation_item_recv_bubble_color_normal">?attr/colorSurfaceContainerHigh</item>
+        <item name="conversation_item_recv_bubble_color_normal">@color/core_black</item>
         <item name="conversation_item_incoming_audio_foreground_tint_normal">?attr/colorOnSurface</item>
         <item name="conversation_typing_indicator_foreground_tint_normal">?attr/colorOnSurfaceVariant</item>
         <item name="conversation_scroll_to_bottom_foreground_color">?attr/colorOnSurfaceVariant</item>

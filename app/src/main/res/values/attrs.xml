@@ -58,6 +58,7 @@
     <attr name="conversation_item_quote_text_color" format="color" />
     <attr name="conversation_item_quote_text_color_sent" format="color" />
     <attr name="conversation_item_recv_bubble_color_normal" format="color" />
+    <attr name="conversation_amoled_background" format="color" />
     <attr name="conversation_item_incoming_audio_foreground_tint_normal" format="color" />
     <attr name="conversation_typing_indicator_foreground_tint_normal" format="color" />
     <attr name="conversation_scroll_to_bottom_foreground_color" format="color" />
