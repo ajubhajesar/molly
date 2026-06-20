@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Signal.DayNight" parent="TextSecure.DarkTheme" />
-
-    <style name="Signal.DayNight.Amoled" parent="TextSecure.DarkTheme">
+    <!-- AMOLED: all dark surfaces baked to pure black universally -->
+    <style name="Signal.DayNight" parent="TextSecure.DarkTheme">
         <item name="colorSurface">@color/core_black</item>
         <item name="colorSurfaceDim">@color/core_black</item>
         <item name="colorSurfaceBright">@color/core_black</item>
@@ -15,7 +14,10 @@
         <item name="android:statusBarColor">@color/core_black</item>
     </style>
 
-    <style name="Theme.Signal.DayNight.NoActionBar.Amoled" parent="TextSecure.DarkNoActionBar">
+    <!-- kept for compatibility, same as base now -->
+    <style name="Signal.DayNight.Amoled" parent="Signal.DayNight" />
+
+    <style name="Theme.Signal.DayNight.NoActionBar" parent="TextSecure.DarkNoActionBar">
         <item name="colorSurface">@color/core_black</item>
         <item name="colorSurfaceDim">@color/core_black</item>
         <item name="colorSurfaceBright">@color/core_black</item>
@@ -28,15 +30,38 @@
         <item name="android:statusBarColor">@color/core_black</item>
     </style>
 
-    <style name="Signal.DayNight.Registration" parent="TextSecure.DarkRegistrationTheme" />
+    <!-- kept for compatibility -->
+    <style name="Theme.Signal.DayNight.NoActionBar.Amoled" parent="Theme.Signal.DayNight.NoActionBar" />
+
+    <style name="Signal.DayNight.ConversationSettings" parent="TextSecure.DarkNoActionBar.ConversationSettings">
+        <item name="colorSurface">@color/core_black</item>
+        <item name="colorSurfaceDim">@color/core_black</item>
+        <item name="colorSurfaceBright">@color/core_black</item>
+        <item name="colorSurfaceContainerLowest">@color/core_black</item>
+        <item name="colorSurfaceContainerLow">@color/core_black</item>
+        <item name="colorSurfaceContainer">@color/core_black</item>
+        <item name="colorSurfaceContainerHigh">@color/core_black</item>
+        <item name="colorSurfaceContainerHighest">@color/core_black</item>
+        <item name="android:navigationBarColor">@color/core_black</item>
+        <item name="android:statusBarColor">@color/core_black</item>
+    </style>
+
+    <style name="Signal.DayNight.Registration" parent="TextSecure.DarkRegistrationTheme">
+        <item name="colorSurface">@color/core_black</item>
+        <item name="colorSurfaceDim">@color/core_black</item>
+        <item name="colorSurfaceBright">@color/core_black</item>
+        <item name="colorSurfaceContainerLowest">@color/core_black</item>
+        <item name="colorSurfaceContainerLow">@color/core_black</item>
+        <item name="colorSurfaceContainer">@color/core_black</item>
+        <item name="colorSurfaceContainerHigh">@color/core_black</item>
+        <item name="colorSurfaceContainerHighest">@color/core_black</item>
+        <item name="android:navigationBarColor">@color/core_black</item>
+        <item name="android:statusBarColor">@color/core_black</item>
+    </style>
 
     <style name="Signal.DayNight.WallpaperCropper" parent="Theme.Signal.WallpaperCropper" />
 
     <style name="Signal.DayNight.BottomSheet.Rounded" parent="Theme.Signal.RoundedBottomSheet" />
-
-    <style name="Signal.DayNight.ConversationSettings" parent="TextSecure.DarkNoActionBar.ConversationSettings" />
-
-    <style name="Theme.Signal.DayNight.NoActionBar" parent="TextSecure.DarkNoActionBar" />
 
     <style name="Theme.Molly.Dynamic" parent="Theme.Molly.Dynamic.Dark" />
     <style name="Theme.Molly.Dynamic.NoActionBar" parent="Theme.Molly.Dynamic.NoActionBar.Dark" />
