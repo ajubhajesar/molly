@@ -241,6 +241,15 @@ public final class SettingsValues extends SignalStoreValues {
     return TextSecurePreferences.isDynamicColorsEnabled(AppDependencies.getApplication());
   }
 
+  public boolean isAmoledEnabled() {
+    return TextSecurePreferences.isAmoledEnabled(AppDependencies.getApplication());
+  }
+
+  public void setAmoledEnabled(boolean enabled) {
+    TextSecurePreferences.setAmoledEnabled(AppDependencies.getApplication(), enabled);
+    onConfigurationSettingChanged.postValue(THEME);
+  }
+
   public int getMessageFontSize() {
     return getInteger(MESSAGE_FONT_SIZE, TextSecurePreferences.getMessageBodyTextSize(AppDependencies.getApplication()));
   }

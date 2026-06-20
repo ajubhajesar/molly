@@ -38,10 +38,16 @@ class AppearanceSettingsViewModel : ViewModel() {
     SignalStore.settings.messageFontSize = size
   }
 
+  fun setAmoledEnabled(enabled: Boolean) {
+    store.update { it.copy(amoledEnabled = enabled) }
+    SignalStore.settings.setAmoledEnabled(enabled)
+  }
+
   private fun getState(): AppearanceSettingsState {
     return AppearanceSettingsState(
       SignalStore.settings.theme,
       dynamicColors = SignalStore.settings.isDynamicColorsEnabled,
+      amoledEnabled = SignalStore.settings.isAmoledEnabled,
       SignalStore.settings.messageFontSize,
       SignalStore.settings.language,
       SignalStore.settings.useCompactNavigationBar

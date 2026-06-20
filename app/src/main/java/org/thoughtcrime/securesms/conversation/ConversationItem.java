@@ -137,6 +137,8 @@ import org.thoughtcrime.securesms.recipients.RecipientForeverObserver;
 import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.revealable.ViewOnceMessageView;
 import org.thoughtcrime.securesms.util.DateUtils;
+import org.thoughtcrime.securesms.util.DynamicTheme;
+import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.thoughtcrime.securesms.util.InterceptableLongClickCopyLinkSpan;
 import org.thoughtcrime.securesms.util.LongClickMovementMethod;
 import org.thoughtcrime.securesms.util.MediaUtil;
@@ -753,7 +755,9 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
   private void initializeAttributes() {
     defaultBubbleColor             = ThemeUtil.getThemedColor(context, R.attr.conversation_item_recv_bubble_color_normal);
-    defaultBubbleColorForWallpaper = ContextCompat.getColor(context, R.color.conversation_item_recv_bubble_color_wallpaper);
+    defaultBubbleColorForWallpaper = (TextSecurePreferences.isAmoledEnabled(context) && DynamicTheme.isDarkTheme(context))
+                                        ? ContextCompat.getColor(context, R.color.core_black)
+                                        : ContextCompat.getColor(context, R.color.conversation_item_recv_bubble_color_wallpaper);
   }
 
   private @ColorInt int getDefaultBubbleColor(boolean hasWallpaper) {

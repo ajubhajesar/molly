@@ -73,6 +73,10 @@ class AppearanceSettingsFragment : ComposeFragment() {
       viewModel.setTheme(activity, SettingsValues.Theme.deserialize(selection), useDynamicColors)
     }
 
+    override fun onAmoledToggled(enabled: Boolean) {
+      viewModel.setAmoledEnabled(enabled)
+    }
+
     override fun onChatColorAndWallpaperClick() {
       findNavController().safeNavigate(R.id.action_appearanceSettings_to_wallpaperActivity)
     }
@@ -95,6 +99,7 @@ interface AppearanceSettingsCallbacks {
   fun onNavigationClick() = Unit
   fun onLanguageSelected(selection: String) = Unit
   fun onThemeSelected(selection: String, useDynamicColors: Boolean) = Unit
+  fun onAmoledToggled(enabled: Boolean) = Unit
   fun onChatColorAndWallpaperClick() = Unit
   fun onAppIconClick() = Unit
   fun onMessageFontSizeSelected(selection: String) = Unit
@@ -135,6 +140,15 @@ private fun AppearanceSettingsScreen(
           values = stringArrayResource(R.array.pref_theme_values),
           selectedValue = state.theme.serialize(),
           onSelected = { callbacks.onThemeSelected(it, state.dynamicColors) },
+        )
+      }
+
+      item {
+        Rows.ToggleRow(
+          text = stringResource(R.string.preferences_appearance__amoled),
+          label = stringResource(R.string.preferences_appearance__amoled_description),
+          checked = state.amoledEnabled,
+          onCheckChanged = callbacks::onAmoledToggled,
         )
       }
 
@@ -204,6 +218,7 @@ private fun AppearanceSettingsScreenPreview() {
       state = AppearanceSettingsState(
         theme = SettingsValues.Theme.SYSTEM,
         dynamicColors = true,
+        amoledEnabled = false,
         messageFontSize = 0,
         language = "en-US",
         isCompactNavigationBar = false

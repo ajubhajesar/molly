@@ -7,6 +7,8 @@ import androidx.lifecycle.LifecycleOwner
 import com.google.android.material.R as MaterialR
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.util.Material3OnScrollHelper
+import org.thoughtcrime.securesms.util.TextSecurePreferences
+import org.thoughtcrime.securesms.util.DynamicTheme
 import org.thoughtcrime.securesms.wallpaper.ChatWallpaper
 
 /**
@@ -24,11 +26,14 @@ class ConversationToolbarOnScrollHelper(
   lifecycleOwner = lifecycleOwner,
   setStatusBarColor = {}
 ) {
+  private val isAmoled: Boolean
+    get() = TextSecurePreferences.isAmoledEnabled(activity) && DynamicTheme.isDarkTheme(activity)
+
   override val activeColorSet: ColorSet
-    = if (incognito) ColorSet.from(activity, R.color.conversation_toolbar_color_incognito) else ColorSet.from(activity, getActiveToolbarColor(wallpaperProvider() != null))
+    = if (incognito) ColorSet.from(activity, R.color.conversation_toolbar_color_incognito) else if (isAmoled) ColorSet.from(activity, R.color.core_black) else ColorSet.from(activity, getActiveToolbarColor(wallpaperProvider() != null))
 
   override val inactiveColorSet: ColorSet
-    = if (incognito) ColorSet.from(activity, R.color.conversation_toolbar_color_incognito) else ColorSet.from(activity, getInactiveToolbarColor(wallpaperProvider() != null))
+    = if (incognito) ColorSet.from(activity, R.color.conversation_toolbar_color_incognito) else if (isAmoled) ColorSet.from(activity, R.color.core_black) else ColorSet.from(activity, getInactiveToolbarColor(wallpaperProvider() != null))
 
   @ColorRes
   private fun getActiveToolbarColor(hasWallpaper: Boolean): Int {

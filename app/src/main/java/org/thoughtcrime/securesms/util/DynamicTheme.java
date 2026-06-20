@@ -17,6 +17,7 @@ import org.signal.core.ui.util.ThemeUtil;
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.keyvalue.SettingsValues.Theme;
+import org.thoughtcrime.securesms.util.TextSecurePreferences;
 
 public class DynamicTheme {
 
@@ -27,6 +28,7 @@ public class DynamicTheme {
   private int onCreateNightModeConfiguration;
 
   private static final int regularTheme = R.style.Signal_DayNight;
+  private static final int amoledTheme  = R.style.Signal_DayNight_Amoled;
   private static final int dynamicTheme = R.style.Theme_Molly_Dynamic;
 
   public void onCreate(@NonNull Activity activity) {
@@ -58,8 +60,20 @@ public class DynamicTheme {
     return dynamicTheme;
   }
 
+  /**
+   * Subclasses (registration, media preview, etc.) keep their own regularTheme override intact.
+   * Only the base DynamicTheme's own regularTheme (used for the main app/conversation screens)
+   * gets swapped to the AMOLED variant when enabled.
+   */
+  private @StyleRes int applyAmoledIfApplicable(@NonNull Context context, @StyleRes int baseTheme) {
+    if (baseTheme == regularTheme && TextSecurePreferences.isAmoledEnabled(context) && isDarkTheme(context)) {
+      return amoledTheme;
+    }
+    return baseTheme;
+  }
+
   public final @StyleRes int getTheme(@NonNull Context context) {
-    return useDynamicColors(context) ? getDynamicTheme() : getRegularTheme();
+    return useDynamicColors(context) ? getDynamicTheme() : applyAmoledIfApplicable(context, getRegularTheme());
   }
 
   public static boolean useDynamicColors(@NonNull Context context) {
@@ -71,7 +85,7 @@ public class DynamicTheme {
   }
 
   public static @ColorInt int resolveColor(@NonNull Context context, int colorRef) {
-    int resId = useDynamicColors(context) ? dynamicTheme : regularTheme;
+    int resId = useDynamicColors(context) ? dynamicTheme : (TextSecurePreferences.isAmoledEnabled(context) && isDarkTheme(context) ? amoledTheme : regularTheme);
     ContextThemeWrapper themeWrapper = new ContextThemeWrapper(context, resId);
     return ThemeUtil.getThemedColor(context, colorRef, themeWrapper.getTheme());
   }

@@ -50,6 +50,7 @@ public class TextSecurePreferences {
 
   public  static final String THEME_PREF                       = "pref_theme";
   public  static final String DYNAMIC_COLORS_ENABLED           = "pref_dynamic_colors";
+  public  static final String AMOLED_ENABLED                   = "pref_amoled_dark";
   public  static final String LANGUAGE_PREF                    = "pref_language";
 
   private static final String LAST_VERSION_CODE_PREF           = "last_version_code";
@@ -210,6 +211,7 @@ public class TextSecurePreferences {
       BIOMETRIC_SCREEN_LOCK,
       PASSPHRASE_LOCK_NOTIFICATIONS,
       DYNAMIC_COLORS_ENABLED,
+      AMOLED_ENABLED,
   };
 
   private static final String[] stringSetPreferencesToBackupMolly = {PASSPHRASE_LOCK_TRIGGER};
@@ -750,6 +752,14 @@ public class TextSecurePreferences {
 
   public static void setDynamicColorsEnabled(Context context, boolean enabled) {
     setBooleanPreference(context, DYNAMIC_COLORS_ENABLED, enabled);
+  }
+
+  public static boolean isAmoledEnabled(Context context) {
+    return getBooleanPreference(context, AMOLED_ENABLED, false);
+  }
+
+  public static void setAmoledEnabled(Context context, boolean enabled) {
+    setBooleanPreference(context, AMOLED_ENABLED, enabled);
   }
 
   public static String getLanguage(Context context) {

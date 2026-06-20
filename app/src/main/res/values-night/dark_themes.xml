@@ -2,6 +2,32 @@
 <resources>
     <style name="Signal.DayNight" parent="TextSecure.DarkTheme" />
 
+    <style name="Signal.DayNight.Amoled" parent="TextSecure.DarkTheme">
+        <item name="colorSurface">@color/core_black</item>
+        <item name="colorSurfaceDim">@color/core_black</item>
+        <item name="colorSurfaceBright">@color/core_black</item>
+        <item name="colorSurfaceContainerLowest">@color/core_black</item>
+        <item name="colorSurfaceContainerLow">@color/core_black</item>
+        <item name="colorSurfaceContainer">@color/core_black</item>
+        <item name="colorSurfaceContainerHigh">@color/core_black</item>
+        <item name="colorSurfaceContainerHighest">@color/core_black</item>
+        <item name="android:navigationBarColor">@color/core_black</item>
+        <item name="android:statusBarColor">@color/core_black</item>
+    </style>
+
+    <style name="Theme.Signal.DayNight.NoActionBar.Amoled" parent="TextSecure.DarkNoActionBar">
+        <item name="colorSurface">@color/core_black</item>
+        <item name="colorSurfaceDim">@color/core_black</item>
+        <item name="colorSurfaceBright">@color/core_black</item>
+        <item name="colorSurfaceContainerLowest">@color/core_black</item>
+        <item name="colorSurfaceContainerLow">@color/core_black</item>
+        <item name="colorSurfaceContainer">@color/core_black</item>
+        <item name="colorSurfaceContainerHigh">@color/core_black</item>
+        <item name="colorSurfaceContainerHighest">@color/core_black</item>
+        <item name="android:navigationBarColor">@color/core_black</item>
+        <item name="android:statusBarColor">@color/core_black</item>
+    </style>
+
     <style name="Signal.DayNight.Registration" parent="TextSecure.DarkRegistrationTheme" />
 
     <style name="Signal.DayNight.WallpaperCropper" parent="Theme.Signal.WallpaperCropper" />

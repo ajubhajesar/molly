@@ -10,6 +10,8 @@ import android.graphics.Color
 import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
 import org.signal.core.ui.util.ThemeUtil
+import org.thoughtcrime.securesms.util.TextSecurePreferences
+import org.thoughtcrime.securesms.util.DynamicTheme
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.conversation.ConversationMessage
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemUtils.isThumbnailAtBottomOfBubble
@@ -80,7 +82,9 @@ class V2ConversationItemTheme(
     return if (conversationMessage.messageRecord.isOutgoing) {
       Color.TRANSPARENT
     } else {
-      if (conversationContext.hasWallpaper()) {
+      if (TextSecurePreferences.isAmoledEnabled(context) && DynamicTheme.isDarkTheme(context)) {
+        ContextCompat.getColor(context, R.color.core_black)
+      } else if (conversationContext.hasWallpaper()) {
         ContextCompat.getColor(context, R.color.conversation_item_recv_bubble_color_wallpaper)
       } else {
         ThemeUtil.getThemedColor(context, R.attr.conversation_item_recv_bubble_color_normal)
