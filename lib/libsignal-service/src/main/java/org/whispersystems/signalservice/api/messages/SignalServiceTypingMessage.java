@@ -6,7 +6,7 @@ import java.util.Optional;
 public class SignalServiceTypingMessage {
 
   public enum Action {
-    UNKNOWN, STARTED, STOPPED
+    UNKNOWN, STARTED, STOPPED, PRESENT
   }
 
   private final Action           action;
@@ -37,5 +37,9 @@ public class SignalServiceTypingMessage {
 
   public boolean isTypingStopped() {
     return action == Action.STOPPED;
+  }
+
+  public boolean isPresent() {
+    return action == Action.PRESENT;
   }
 }

@@ -79,6 +79,20 @@ public class TypingStatusSender {
     AppDependencies.getJobManager().add(new TypingSendJob(threadId, typingStarted));
   }
 
+  /**
+   * AJ fork: minimal presence signal. Sends PRESENT when the conversation
+   * screen is resumed (foregrounded, unlocked, viewing this thread), and
+   * STOPPED when it's paused. No safety-expiry timer — relies purely on
+   * these two lifecycle calls firing reliably.
+   */
+  public void onConversationResumed(long threadId) {
+    AppDependencies.getJobManager().add(new TypingSendJob(threadId, false, true));
+  }
+
+  public void onConversationPaused(long threadId) {
+    AppDependencies.getJobManager().add(new TypingSendJob(threadId, false, false));
+  }
+
   private class StartRunnable implements Runnable {
 
     private final long threadId;

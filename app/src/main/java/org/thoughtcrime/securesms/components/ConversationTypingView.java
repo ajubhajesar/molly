@@ -52,7 +52,16 @@ public class ConversationTypingView extends ConstraintLayout {
   }
 
   public void setTypists(@NonNull RequestManager requestManager, @NonNull List<Recipient> typists, boolean isGroupThread, boolean hasWallpaper) {
-    if (typists.isEmpty()) {
+    setTypists(requestManager, typists, isGroupThread, hasWallpaper, false);
+  }
+
+  /**
+   * AJ fork: minimal presence indicator. When isPresentOnly is true and there are
+   * no active typists, shows a plain "In chat" label in the same bubble area instead
+   * of the animated typing dots.
+   */
+  public void setTypists(@NonNull RequestManager requestManager, @NonNull List<Recipient> typists, boolean isGroupThread, boolean hasWallpaper, boolean isPresentOnly) {
+    if (typists.isEmpty() && !isPresentOnly) {
       indicator.stopAnimation();
       return;
     }
@@ -79,7 +88,15 @@ public class ConversationTypingView extends ConstraintLayout {
       indicator.setDotTint(ThemeUtil.getThemedColor(getContext(), R.attr.conversation_typing_indicator_foreground_tint_normal));
     }
 
-    indicator.startAnimation();
+    if (isPresentOnly && typists.isEmpty()) {
+      indicator.stopAnimation();
+      indicator.setVisibility(GONE);
+      typistCount.setText(R.string.ConversationTypingView__in_chat);
+      typistCount.setVisibility(VISIBLE);
+    } else {
+      indicator.setVisibility(VISIBLE);
+      indicator.startAnimation();
+    }
   }
 
   public boolean isActive() {

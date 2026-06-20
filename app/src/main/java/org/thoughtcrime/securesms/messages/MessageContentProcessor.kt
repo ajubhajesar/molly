@@ -34,6 +34,7 @@ import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasDisallowedA
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasGroupContext
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasSignedGroupChange
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasStarted
+import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isPresent
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isExpirationUpdate
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isMediaMessage
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isValid
@@ -601,9 +602,14 @@ open class MessageContentProcessor(private val context: Context) {
     if (typingMessage.hasStarted) {
       Log.d(TAG, "Typing started on thread $threadId")
       AppDependencies.typingStatusRepository.onTypingStarted(context, threadId, senderRecipient, metadata.sourceDeviceId)
+    } else if (typingMessage.isPresent) {
+      Log.d(TAG, "Presence signal (in chat, not typing) on thread $threadId")
+      AppDependencies.typingStatusRepository.onTypingStopped(threadId, senderRecipient, metadata.sourceDeviceId, false)
+      AppDependencies.typingStatusRepository.onPresent(threadId, senderRecipient)
     } else {
       Log.d(TAG, "Typing stopped on thread $threadId")
       AppDependencies.typingStatusRepository.onTypingStopped(threadId, senderRecipient, metadata.sourceDeviceId, false)
+      AppDependencies.typingStatusRepository.onNotPresent(threadId, senderRecipient)
     }
   }
 

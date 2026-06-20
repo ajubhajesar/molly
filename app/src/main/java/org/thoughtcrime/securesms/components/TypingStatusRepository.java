@@ -36,11 +36,17 @@ public class TypingStatusRepository {
   private final Map<Long, MutableLiveData<TypingState>> notifiers;
   private final MutableLiveData<Set<Long>>              threadsNotifier;
 
+  // AJ fork: presence ("in chat, not typing") tracking, kept separate from typing
+  private final Map<Long, Set<Recipient>>                presentMap;
+  private final Map<Long, MutableLiveData<Set<Recipient>>> presenceNotifiers;
+
   public TypingStatusRepository() {
     this.typistMap       = new HashMap<>();
     this.timers          = new HashMap<>();
     this.notifiers       = new HashMap<>();
     this.threadsNotifier = new MutableLiveData<>();
+    this.presentMap         = new HashMap<>();
+    this.presenceNotifiers  = new HashMap<>();
   }
 
   public synchronized void onTypingStarted(@NonNull Context context, long threadId, @NonNull Recipient author, int device) {
@@ -101,6 +107,49 @@ public class TypingStatusRepository {
     return threadsNotifier;
   }
 
+  /**
+   * AJ fork: mark a recipient as "present" (conversation screen resumed, not typing) for a thread.
+   * No timeout/safety-expiry — relies purely on the sender's PRESENT/STOPPED signals.
+   */
+  public synchronized void onPresent(long threadId, @NonNull Recipient author) {
+    if (author.isSelf()) {
+      return;
+    }
+
+    Set<Recipient> present = Util.getOrDefault(presentMap, threadId, new LinkedHashSet<>());
+    if (present.add(author)) {
+      presentMap.put(threadId, present);
+      notifyPresence(threadId, present);
+    }
+  }
+
+  public synchronized void onNotPresent(long threadId, @NonNull Recipient author) {
+    if (author.isSelf()) {
+      return;
+    }
+
+    Set<Recipient> present = Util.getOrDefault(presentMap, threadId, new LinkedHashSet<>());
+    if (present.remove(author)) {
+      notifyPresence(threadId, present);
+    }
+
+    if (present.isEmpty()) {
+      presentMap.remove(threadId);
+    }
+  }
+
+  public synchronized LiveData<Set<Recipient>> getPresence(long threadId) {
+    MutableLiveData<Set<Recipient>> notifier = Util.getOrDefault(presenceNotifiers, threadId, new MutableLiveData<>());
+    presenceNotifiers.put(threadId, notifier);
+    return notifier;
+  }
+
+  private void notifyPresence(long threadId, @NonNull Set<Recipient> present) {
+    MutableLiveData<Set<Recipient>> notifier = Util.getOrDefault(presenceNotifiers, threadId, new MutableLiveData<>());
+    presenceNotifiers.put(threadId, notifier);
+    notifier.postValue(new LinkedHashSet<>(present));
+  }
+
   public synchronized void stopAllTypingForThread(long threadId) {
     Set<Typist> typists = typistMap.remove(threadId);
     if (typists != null) {
@@ -111,6 +160,10 @@ public class TypingStatusRepository {
         }
       }
       notifyThread(threadId, Collections.emptySet(), false);
+    }
+
+    if (presentMap.remove(threadId) != null) {
+      notifyPresence(threadId, Collections.emptySet());
     }
   }
 
@@ -125,6 +178,12 @@ public class TypingStatusRepository {
     timers.clear();
 
     threadsNotifier.postValue(Collections.emptySet());
+
+    for (MutableLiveData<Set<Recipient>> notifier : presenceNotifiers.values()) {
+      notifier.postValue(Collections.emptySet());
+    }
+    presenceNotifiers.clear();
+    presentMap.clear();
   }
 
   private void notifyThread(long threadId, @NonNull Set<Typist> typists, boolean isReplacedByIncomingMessage) {

@@ -21,9 +21,12 @@ class ConversationTypingIndicatorAdapter(
   private var state: State = State()
 
   fun setState(state: State) {
-    val isInsert = this.state.typists.isEmpty() && state.typists.isNotEmpty()
-    val isRemoval = state.typists.isEmpty() && this.state.typists.isNotEmpty()
-    val isChange = state.typists.isNotEmpty() && this.state.typists.isNotEmpty()
+    val hasContent = state.typists.isNotEmpty() || state.isPresentOnly
+    val hadContent = this.state.typists.isNotEmpty() || this.state.isPresentOnly
+
+    val isInsert = !hadContent && hasContent
+    val isRemoval = !hasContent && hadContent
+    val isChange = hasContent && hadContent
 
     this.state = state
 
@@ -39,7 +42,7 @@ class ConversationTypingIndicatorAdapter(
     return ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.conversation_typing_view, parent, false) as ConversationTypingView)
   }
 
-  override fun getItemCount(): Int = state.typists.isNotEmpty().toInt()
+  override fun getItemCount(): Int = (state.typists.isNotEmpty() || state.isPresentOnly).toInt()
 
   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
     holder.bind(requestManager, state)
@@ -54,7 +57,8 @@ class ConversationTypingIndicatorAdapter(
         requestManager,
         state.typists,
         state.isGroupThread,
-        state.hasWallpaper
+        state.hasWallpaper,
+        state.isPresentOnly
       )
     }
   }
@@ -63,6 +67,7 @@ class ConversationTypingIndicatorAdapter(
     val typists: List<Recipient> = emptyList(),
     val hasWallpaper: Boolean = false,
     val isGroupThread: Boolean = false,
-    val isReplacedByIncomingMessage: Boolean = false // TODO
+    val isReplacedByIncomingMessage: Boolean = false, // TODO
+    val isPresentOnly: Boolean = false
   )
 }

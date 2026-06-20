@@ -942,6 +942,7 @@ public class SignalServiceMessageSender {
 
     if      (message.isTypingStarted()) builder.action(TypingMessage.Action.STARTED);
     else if (message.isTypingStopped()) builder.action(TypingMessage.Action.STOPPED);
+    else if (message.isPresent())       builder.action(TypingMessage.Action.PRESENT);
     else                                throw new IllegalArgumentException("Unknown typing indicator");
 
     if (message.getGroupId().isPresent()) {

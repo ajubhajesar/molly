@@ -34,11 +34,17 @@ public class TypingSendJob extends BaseJob {
 
   private static final String KEY_THREAD_ID = "thread_id";
   private static final String KEY_TYPING    = "typing";
+  private static final String KEY_PRESENT   = "present";
 
   private long    threadId;
   private boolean typing;
+  private boolean present;
 
   public TypingSendJob(long threadId, boolean typing) {
+    this(threadId, typing, false);
+  }
+
+  public TypingSendJob(long threadId, boolean typing, boolean present) {
     this(new Job.Parameters.Builder()
                            .setQueue(getQueue(threadId))
                            .setMaxAttempts(1)
@@ -48,18 +54,20 @@ public class TypingSendJob extends BaseJob {
                            .setMemoryOnly(true)
                            .build(),
          threadId,
-         typing);
+         typing,
+         present);
   }
 
   public static String getQueue(long threadId) {
     return "TYPING_" + threadId;
   }
 
-  private TypingSendJob(@NonNull Job.Parameters parameters, long threadId, boolean typing) {
+  private TypingSendJob(@NonNull Job.Parameters parameters, long threadId, boolean typing, boolean present) {
     super(parameters);
 
     this.threadId = threadId;
     this.typing   = typing;
+    this.present  = present;
   }
 
 
@@ -67,6 +75,7 @@ public class TypingSendJob extends BaseJob {
   public @Nullable byte[] serialize() {
     return new JsonJobData.Builder().putLong(KEY_THREAD_ID, threadId)
                                     .putBoolean(KEY_TYPING, typing)
+                                    .putBoolean(KEY_PRESENT, present)
                                     .serialize();
   }
 
@@ -85,7 +94,7 @@ public class TypingSendJob extends BaseJob {
       return;
     }
 
-    Log.d(TAG, "Sending typing " + (typing ? "started" : "stopped") + " for thread " + threadId);
+    Log.d(TAG, "Sending typing " + (present ? "present" : (typing ? "started" : "stopped")) + " for thread " + threadId);
 
     Recipient recipient = SignalDatabase.threads().getRecipientForThreadId(threadId);
 
@@ -131,7 +140,8 @@ public class TypingSendJob extends BaseJob {
                                                            .map(Recipient::resolve)
                                                            .toList());
 
-    SignalServiceTypingMessage typingMessage = new SignalServiceTypingMessage(typing ? Action.STARTED : Action.STOPPED, System.currentTimeMillis(), groupId);
+    SignalServiceTypingMessage.Action action = present ? Action.PRESENT : (typing ? Action.STARTED : Action.STOPPED);
+    SignalServiceTypingMessage typingMessage = new SignalServiceTypingMessage(action, System.currentTimeMillis(), groupId);
 
     GroupSendUtil.sendTypingMessage(context,
                                     recipient.getGroupId().map(GroupId::requireV2).orElse(null),
@@ -153,7 +163,7 @@ public class TypingSendJob extends BaseJob {
     @Override
     public @NonNull TypingSendJob create(@NonNull Parameters parameters, @Nullable byte[] serializedData) {
       JsonJobData data = JsonJobData.deserialize(serializedData);
-      return new TypingSendJob(parameters, data.getLong(KEY_THREAD_ID), data.getBoolean(KEY_TYPING));
+      return new TypingSendJob(parameters, data.getLong(KEY_THREAD_ID), data.getBoolean(KEY_TYPING), data.getBooleanOrDefault(KEY_PRESENT, false));
     }
   }
 }

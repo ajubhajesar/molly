@@ -146,6 +146,7 @@ import org.thoughtcrime.securesms.components.InsetAwareConstraintLayout
 import org.thoughtcrime.securesms.components.ProgressCardDialogFragment
 import org.thoughtcrime.securesms.components.ScrollToPositionDelegate
 import org.thoughtcrime.securesms.components.SendButton
+import org.thoughtcrime.securesms.components.TypingStatusRepository
 import org.thoughtcrime.securesms.components.SignalProgressDialog
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.components.compose.ActionModeTopBarView
@@ -767,6 +768,8 @@ class ConversationFragment :
       AppDependencies.messageNotifier.setVisibleBubbleThread(ConversationId.forConversation(args.threadId))
     }
 
+    AppDependencies.typingStatusSender.onConversationResumed(args.threadId)
+
     viewModel.updateIdentityRecordsInBackground()
 
     if (args.isFirstTimeInSelfCreatedGroup) {
@@ -798,6 +801,8 @@ class ConversationFragment :
     } else {
       AppDependencies.messageNotifier.clearVisibleBubbleThread()
     }
+
+    AppDependencies.typingStatusSender.onConversationPaused(args.threadId)
 
     if (activity?.isFinishing == true) {
       activity?.overridePendingTransition(R.anim.fade_scale_in, R.anim.slide_to_end)
@@ -1489,17 +1494,34 @@ class ConversationFragment :
       }
     })
 
-    AppDependencies.typingStatusRepository.getTypists(args.threadId).observe(viewLifecycleOwner) {
-      val recipient = viewModel.recipientSnapshot ?: return@observe
+    var latestTypingState: TypingStatusRepository.TypingState = TypingStatusRepository.TypingState(emptyList(), false)
+    var latestPresenceState: Set<Recipient> = emptySet()
+
+    fun renderTypingIndicator() {
+      val recipient = viewModel.recipientSnapshot ?: return
+
+      val typists = latestTypingState.typists
+      val presentOnly = typists.isEmpty() && latestPresenceState.isNotEmpty()
 
       typingIndicatorAdapter.setState(
         ConversationTypingIndicatorAdapter.State(
-          typists = it.typists,
+          typists = typists,
           isGroupThread = recipient.isGroup,
           hasWallpaper = recipient.hasWallpaper,
-          isReplacedByIncomingMessage = it.isReplacedByIncomingMessage
+          isReplacedByIncomingMessage = latestTypingState.isReplacedByIncomingMessage,
+          isPresentOnly = presentOnly
         )
       )
+    }
+
+    AppDependencies.typingStatusRepository.getTypists(args.threadId).observe(viewLifecycleOwner) {
+      latestTypingState = it
+      renderTypingIndicator()
+    }
+
+    AppDependencies.typingStatusRepository.getPresence(args.threadId).observe(viewLifecycleOwner) {
+      latestPresenceState = it
+      renderTypingIndicator()
     }
   }
 
