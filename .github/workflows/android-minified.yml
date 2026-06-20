@@ -1,0 +1,81 @@
+name: Build APK (Aggressive Minify)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Decode keystore
+      run: base64 -d dev.keystore.b64 > dev.keystore
+
+    - name: Enable R8 full mode
+      run: |
+        echo "android.enableR8.fullMode=true" >> gradle.properties
+
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/wrapper
+        key: gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+        restore-keys: gradle-deps-
+
+    - name: Cache Gradle build output
+      uses: actions/cache@v4
+      with:
+        path: ~/.gradle/caches/build-cache-*
+        key: gradle-build-minified-${{ hashFiles('app/src/**/*.kt', 'app/src/**/*.java', 'app/src/**/*.kts') }}
+        restore-keys: gradle-build-minified-
+
+    - name: Build release APK (aggressive)
+      run: ./gradlew :app:assembleProdWebsiteRelease --no-configuration-cache -x lint -Dlint.baselines.continue=true
+      env:
+        CI_KEYSTORE_PATH: ${{ github.workspace }}/dev.keystore
+        CI_KEYSTORE_PASSWORD: devpass123
+        CI_KEYSTORE_ALIAS: dev
+
+    - name: Find APK
+      run: |
+        APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+        echo "Found: $APK"
+        cp "$APK" Molly-AJ-minified.apk
+
+    - name: Delete existing 'minified' release
+      run: gh release delete minified --yes --cleanup-tag || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Publish APK
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: minified
+        name: "Minified Build"
+        body: "R8 full mode build from ${{ github.sha }}"
+        prerelease: true
+        files: Molly-AJ-minified.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
