@@ -266,6 +266,18 @@
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         app:layout_goneMarginBottom="0dp" />
 
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/conversation_presence_indicator"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="2dp"
+        android:visibility="gone"
+        app:lottie_rawRes="@raw/presence_cat_indicator"
+        app:layout_constraintBottom_toTopOf="@+id/conversation_input_panel"
+        app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
+        tools:visibility="visible" />
+
     <include
         android:id="@+id/conversation_input_panel"
         layout="@layout/conversation_input_panel"

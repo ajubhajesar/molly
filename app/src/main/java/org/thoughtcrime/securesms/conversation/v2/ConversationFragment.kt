@@ -1486,28 +1486,92 @@ class ConversationFragment :
   }
 
   private fun presentTypingIndicator() {
-    typingIndicatorAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-      override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-        if (positionStart == 0 && itemCount == 1 && layoutManager.findFirstCompletelyVisibleItemPosition() == 0) {
-          scrollToPositionDelegate.resetScrollPosition()
-        }
-      }
-    })
-
     AppDependencies.typingStatusRepository.getTypists(args.threadId).observe(viewLifecycleOwner) {
-      val recipient = viewModel.recipientSnapshot ?: return@observe
+      val isTyping = it.typists.isNotEmpty()
+      val isPresent = it.present.isNotEmpty()
 
-      val presentOnly = it.typists.isEmpty() && it.present.isNotEmpty()
+      updatePresenceCat(isTyping, isPresent)
+    }
+  }
 
-      typingIndicatorAdapter.setState(
-        ConversationTypingIndicatorAdapter.State(
-          typists = it.typists,
-          isGroupThread = recipient.isGroup,
-          hasWallpaper = recipient.hasWallpaper,
-          isReplacedByIncomingMessage = it.isReplacedByIncomingMessage,
-          isPresentOnly = presentOnly
-        )
-      )
+  /**
+   * AJ fork: drives the fixed-position cat indicator (above the input bar).
+   * Sleep loop (0-410) = present, not typing. Wake transition (410-450) plays once
+   * on typing start. Awake hold (450-479) loops while typing continues. Reverse of
+   * the wake transition plays once when typing stops before resuming the sleep loop.
+   */
+  private var catIsAwake = false
+
+  private fun updatePresenceCat(isTyping: Boolean, isPresent: Boolean) {
+    val cat = binding.conversationPresenceIndicator
+
+    if (!isTyping && !isPresent) {
+      if (cat.visibility == View.VISIBLE) {
+        cat.animate()
+          .translationY(cat.height.toFloat())
+          .alpha(0f)
+          .setDuration(220)
+          .withEndAction {
+            cat.cancelAnimation()
+            cat.visibility = View.GONE
+            cat.translationY = 0f
+            cat.alpha = 1f
+            catIsAwake = false
+          }
+          .start()
+      }
+      return
+    }
+
+    if (cat.visibility != View.VISIBLE) {
+      cat.visibility = View.VISIBLE
+      cat.alpha = 1f
+      cat.translationY = 0f
+      cat.setMinAndMaxFrame(0, 410)
+      cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
+      cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+      cat.playAnimation()
+      catIsAwake = false
+    }
+
+    if (isTyping && !catIsAwake) {
+      catIsAwake = true
+      cat.repeatCount = 0
+      cat.setMinAndMaxFrame(410, 450)
+      cat.removeAllAnimatorListeners()
+      cat.addAnimatorListener(object : android.animation.Animator.AnimatorListener {
+        override fun onAnimationEnd(animation: android.animation.Animator) {
+          cat.removeAnimatorListener(this)
+          cat.setMinAndMaxFrame(450, 479)
+          cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
+          cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+          cat.playAnimation()
+        }
+        override fun onAnimationStart(animation: android.animation.Animator) = Unit
+        override fun onAnimationCancel(animation: android.animation.Animator) = Unit
+        override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
+      })
+      cat.playAnimation()
+    } else if (!isTyping && catIsAwake) {
+      catIsAwake = false
+      cat.repeatCount = 0
+      cat.setMinAndMaxFrame(410, 450)
+      cat.speed = -1f
+      cat.removeAllAnimatorListeners()
+      cat.addAnimatorListener(object : android.animation.Animator.AnimatorListener {
+        override fun onAnimationEnd(animation: android.animation.Animator) {
+          cat.removeAnimatorListener(this)
+          cat.speed = 1f
+          cat.setMinAndMaxFrame(0, 410)
+          cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
+          cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+          cat.playAnimation()
+        }
+        override fun onAnimationStart(animation: android.animation.Animator) = Unit
+        override fun onAnimationCancel(animation: android.animation.Animator) = Unit
+        override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
+      })
+      cat.playAnimation()
     }
   }
 
