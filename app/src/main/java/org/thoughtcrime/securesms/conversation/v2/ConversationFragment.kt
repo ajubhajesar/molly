@@ -1494,34 +1494,20 @@ class ConversationFragment :
       }
     })
 
-    var latestTypingState: TypingStatusRepository.TypingState = TypingStatusRepository.TypingState(emptyList(), false)
-    var latestPresenceState: Set<Recipient> = emptySet()
+    AppDependencies.typingStatusRepository.getTypists(args.threadId).observe(viewLifecycleOwner) {
+      val recipient = viewModel.recipientSnapshot ?: return@observe
 
-    fun renderTypingIndicator() {
-      val recipient = viewModel.recipientSnapshot ?: return
-
-      val typists = latestTypingState.typists
-      val presentOnly = typists.isEmpty() && latestPresenceState.isNotEmpty()
+      val presentOnly = it.typists.isEmpty() && it.present.isNotEmpty()
 
       typingIndicatorAdapter.setState(
         ConversationTypingIndicatorAdapter.State(
-          typists = typists,
+          typists = it.typists,
           isGroupThread = recipient.isGroup,
           hasWallpaper = recipient.hasWallpaper,
-          isReplacedByIncomingMessage = latestTypingState.isReplacedByIncomingMessage,
+          isReplacedByIncomingMessage = it.isReplacedByIncomingMessage,
           isPresentOnly = presentOnly
         )
       )
-    }
-
-    AppDependencies.typingStatusRepository.getTypists(args.threadId).observe(viewLifecycleOwner) {
-      latestTypingState = it
-      renderTypingIndicator()
-    }
-
-    AppDependencies.typingStatusRepository.getPresence(args.threadId).observe(viewLifecycleOwner) {
-      latestPresenceState = it
-      renderTypingIndicator()
     }
   }
 

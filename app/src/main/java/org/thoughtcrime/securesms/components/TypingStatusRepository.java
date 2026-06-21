@@ -32,21 +32,17 @@ public class TypingStatusRepository {
   private static final long RECIPIENT_TYPING_TIMEOUT = TimeUnit.SECONDS.toMillis(15);
 
   private final Map<Long, Set<Typist>>                  typistMap;
+  private final Map<Long, Set<Recipient>>                presentMap;
   private final Map<Typist, Runnable>                   timers;
   private final Map<Long, MutableLiveData<TypingState>> notifiers;
   private final MutableLiveData<Set<Long>>              threadsNotifier;
 
-  // AJ fork: presence ("in chat, not typing") tracking, kept separate from typing
-  private final Map<Long, Set<Recipient>>                presentMap;
-  private final Map<Long, MutableLiveData<Set<Recipient>>> presenceNotifiers;
-
   public TypingStatusRepository() {
     this.typistMap       = new HashMap<>();
+    this.presentMap      = new HashMap<>();
     this.timers          = new HashMap<>();
     this.notifiers       = new HashMap<>();
     this.threadsNotifier = new MutableLiveData<>();
-    this.presentMap         = new HashMap<>();
-    this.presenceNotifiers  = new HashMap<>();
   }
 
   public synchronized void onTypingStarted(@NonNull Context context, long threadId, @NonNull Recipient author, int device) {
@@ -60,8 +56,14 @@ public class TypingStatusRepository {
     if (!typists.contains(typist)) {
       typists.add(typist);
       typistMap.put(threadId, typists);
-      notifyThread(threadId, typists, false);
     }
+
+    Set<Recipient> present = presentMap.get(threadId);
+    if (present != null && present.remove(author) && present.isEmpty()) {
+      presentMap.remove(threadId);
+    }
+
+    notifyThread(threadId, false);
 
     Runnable timer = timers.get(typist);
     if (timer != null) {
@@ -81,13 +83,13 @@ public class TypingStatusRepository {
     Set<Typist> typists = Util.getOrDefault(typistMap, threadId, new LinkedHashSet<>());
     Typist      typist  = new Typist(author, device, threadId);
 
-    if (typists.contains(typist)) {
-      typists.remove(typist);
-      notifyThread(threadId, typists, isReplacedByIncomingMessage);
-    }
-
+    boolean wasTyping = typists.remove(typist);
     if (typists.isEmpty()) {
       typistMap.remove(threadId);
+    }
+
+    if (wasTyping) {
+      notifyThread(threadId, isReplacedByIncomingMessage);
     }
 
     Runnable timer = timers.get(typist);
@@ -110,6 +112,8 @@ public class TypingStatusRepository {
   /**
    * AJ fork: mark a recipient as "present" (conversation screen resumed, not typing) for a thread.
    * No timeout/safety-expiry — relies purely on the sender's PRESENT/STOPPED signals.
+   * Folded into the same TypingState/notifier used for typing, so there is exactly one
+   * source of truth per thread and no race between separate LiveData streams.
    */
   public synchronized void onPresent(long threadId, @NonNull Recipient author) {
     if (author.isSelf()) {
@@ -117,9 +121,11 @@ public class TypingStatusRepository {
     }
 
     Set<Recipient> present = Util.getOrDefault(presentMap, threadId, new LinkedHashSet<>());
-    if (present.add(author)) {
-      presentMap.put(threadId, present);
-      notifyPresence(threadId, present);
+    boolean        changed = present.add(author);
+    presentMap.put(threadId, present);
+
+    if (changed) {
+      notifyThread(threadId, false);
     }
   }
 
@@ -128,30 +134,25 @@ public class TypingStatusRepository {
       return;
     }
 
-    Set<Recipient> present = Util.getOrDefault(presentMap, threadId, new LinkedHashSet<>());
-    if (present.remove(author)) {
-      notifyPresence(threadId, present);
+    Set<Recipient> present = presentMap.get(threadId);
+    if (present == null) {
+      return;
     }
 
+    boolean changed = present.remove(author);
     if (present.isEmpty()) {
       presentMap.remove(threadId);
     }
-  }
 
-  public synchronized LiveData<Set<Recipient>> getPresence(long threadId) {
-    MutableLiveData<Set<Recipient>> notifier = Util.getOrDefault(presenceNotifiers, threadId, new MutableLiveData<>());
-    presenceNotifiers.put(threadId, notifier);
-    return notifier;
-  }
-
-  private void notifyPresence(long threadId, @NonNull Set<Recipient> present) {
-    MutableLiveData<Set<Recipient>> notifier = Util.getOrDefault(presenceNotifiers, threadId, new MutableLiveData<>());
-    presenceNotifiers.put(threadId, notifier);
-    notifier.postValue(new LinkedHashSet<>(present));
+    if (changed) {
+      notifyThread(threadId, false);
+    }
   }
 
   public synchronized void stopAllTypingForThread(long threadId) {
-    Set<Typist> typists = typistMap.remove(threadId);
+    Set<Typist>    typists = typistMap.remove(threadId);
+    Set<Recipient> present = presentMap.remove(threadId);
+
     if (typists != null) {
       for (Typist typist : typists) {
         Runnable timer = timers.remove(typist);
@@ -159,35 +160,32 @@ public class TypingStatusRepository {
           ThreadUtil.cancelRunnableOnMain(timer);
         }
       }
-      notifyThread(threadId, Collections.emptySet(), false);
     }
 
-    if (presentMap.remove(threadId) != null) {
-      notifyPresence(threadId, Collections.emptySet());
+    if (typists != null || present != null) {
+      notifyThread(threadId, false);
     }
   }
 
   public synchronized void clear() {
-    TypingState empty = new TypingState(Collections.emptyList(), false);
+    TypingState empty = new TypingState(Collections.emptyList(), Collections.emptyList(), false);
     for (MutableLiveData<TypingState> notifier : notifiers.values()) {
       notifier.postValue(empty);
     }
     
     notifiers.clear();
     typistMap.clear();
+    presentMap.clear();
     timers.clear();
 
     threadsNotifier.postValue(Collections.emptySet());
-
-    for (MutableLiveData<Set<Recipient>> notifier : presenceNotifiers.values()) {
-      notifier.postValue(Collections.emptySet());
-    }
-    presenceNotifiers.clear();
-    presentMap.clear();
   }
 
-  private void notifyThread(long threadId, @NonNull Set<Typist> typists, boolean isReplacedByIncomingMessage) {
-    Log.d(TAG, "notifyThread() threadId: " + threadId + "  typists: " + typists.size() + "  isReplaced: " + isReplacedByIncomingMessage);
+  private void notifyThread(long threadId, boolean isReplacedByIncomingMessage) {
+    Set<Typist>    typists = Util.getOrDefault(typistMap, threadId, Collections.emptySet());
+    Set<Recipient> present = Util.getOrDefault(presentMap, threadId, Collections.emptySet());
+
+    Log.d(TAG, "notifyThread() threadId: " + threadId + "  typists: " + typists.size() + "  present: " + present.size() + "  isReplaced: " + isReplacedByIncomingMessage);
 
     MutableLiveData<TypingState> notifier = Util.getOrDefault(notifiers, threadId, new MutableLiveData<>());
     notifiers.put(threadId, notifier);
@@ -197,7 +195,7 @@ public class TypingStatusRepository {
       uniqueTypists.add(typist.getAuthor());
     }
 
-    notifier.postValue(new TypingState(new ArrayList<>(uniqueTypists), isReplacedByIncomingMessage));
+    notifier.postValue(new TypingState(new ArrayList<>(uniqueTypists), new ArrayList<>(present), isReplacedByIncomingMessage));
 
     Set<Long> activeThreads = Stream.of(typistMap.keySet()).filter(t -> !typistMap.get(t).isEmpty()).collect(Collectors.toSet());
     threadsNotifier.postValue(activeThreads);
@@ -205,15 +203,22 @@ public class TypingStatusRepository {
 
   public static class TypingState {
     private final List<Recipient> typists;
+    private final List<Recipient> present;
     private final boolean         replacedByIncomingMessage;
 
-    public TypingState(List<Recipient> typists, boolean replacedByIncomingMessage) {
+    public TypingState(List<Recipient> typists, List<Recipient> present, boolean replacedByIncomingMessage) {
       this.typists                   = typists;
+      this.present                   = present;
       this.replacedByIncomingMessage = replacedByIncomingMessage;
     }
 
     public List<Recipient> getTypists() {
       return typists;
+    }
+
+    /** AJ fork: recipients who have the chat open/foregrounded but are not currently typing. */
+    public List<Recipient> getPresent() {
+      return present;
     }
 
     public boolean isReplacedByIncomingMessage() {
