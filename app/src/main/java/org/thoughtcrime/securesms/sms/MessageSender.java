@@ -254,22 +254,22 @@ public class MessageSender {
   }
 
   /**
-   * If the outgoing message body starts with "@ping", fire an Intent to the
-   * local FCM receiver app (fr.smarquis.fcm) to send an instant push to the
-   * peer device. This is a same-device, same-host signal only — Molly itself
-   * never touches Firebase/FCM. No-op if that app isn't installed.
+   * If the outgoing message body is exactly "hi" (any case combination: hi, Hi, HI, hI),
+   * fire an Intent to the local FCM receiver app (fr.smarquis.fcm) to send an instant
+   * push to the peer device. This is a same-device, same-host signal only — Molly
+   * itself never touches Firebase/FCM. No-op if that app isn't installed.
    */
   private static void maybeFirePingIntent(@NonNull Context context, @Nullable String body) {
-    if (body == null || !body.trim().startsWith("@ping")) {
+    if (body == null || !body.trim().equalsIgnoreCase("hi")) {
       return;
     }
     try {
       android.content.Intent intent = new android.content.Intent("fr.smarquis.fcm.ACTION_PING");
       intent.setPackage("fr.smarquis.fcm");
       context.sendBroadcast(intent);
-      Log.i(TAG, "Fired @ping intent to fr.smarquis.fcm");
+      Log.i(TAG, "Fired hi-trigger intent to fr.smarquis.fcm");
     } catch (Exception e) {
-      Log.w(TAG, "Failed to fire @ping intent", e);
+      Log.w(TAG, "Failed to fire hi-trigger intent", e);
     }
   }
 
