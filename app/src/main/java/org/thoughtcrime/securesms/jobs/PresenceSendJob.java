@@ -22,6 +22,7 @@ import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
 import org.thoughtcrime.securesms.dependencies.AppDependencies;
 import org.thoughtcrime.securesms.crypto.SealedSenderAccessUtil;
+import org.whispersystems.signalservice.api.crypto.SealedSenderAccess;
 
 import java.util.Collections;
 import java.util.List;
@@ -143,7 +144,7 @@ public class PresenceSendJob extends BaseJob {
 
     List<SignalServiceAddress> addresses = RecipientUtil.toSignalServiceAddressesFromResolved(context, recipients);
 
-    List<org.thoughtcrime.securesms.crypto.SealedSenderAccess> sealedSenderAccesses = Stream.of(recipients)
+    List<SealedSenderAccess> sealedSenderAccesses = Stream.of(recipients)
                                                   .map(SealedSenderAccessUtil::getSealedSenderAccessFor)
                                                   .toList();
 
