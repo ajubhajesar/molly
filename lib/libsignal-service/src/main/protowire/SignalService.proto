@@ -114,6 +114,7 @@ message Content {
     bytes /* DecryptionErrorMessage */ decryptionErrorMessage = 8;
     StoryMessage storyMessage = 9;
     EditMessage editMessage = 11;
+    PresenceMessage presenceMessage = 101; // AJ fork: independent presence signal
   }
 
   optional bytes /* SenderKeyDistributionMessage */ senderKeyDistributionMessage = 7;
@@ -463,7 +464,20 @@ message TypingMessage {
   enum Action {
     STARTED = 0;
     STOPPED = 1;
-    PRESENT = 2; // AJ fork: conversation screen is foregrounded/resumed, not typing
+  }
+
+  optional uint64 timestamp = 1;
+  optional Action action = 2;
+  optional bytes groupId = 3;
+}
+
+// AJ fork: fully independent of TypingMessage. "Active" means the conversation
+// screen is foregrounded/resumed - it has no relationship to typing at all.
+// Typing starting or stopping never affects this value in either direction.
+message PresenceMessage {
+  enum Action {
+    ACTIVE = 0;
+    INACTIVE = 1;
   }
 
   optional uint64 timestamp = 1;

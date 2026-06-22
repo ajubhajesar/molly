@@ -58,11 +58,6 @@ public class TypingStatusRepository {
       typistMap.put(threadId, typists);
     }
 
-    Set<Recipient> present = presentMap.get(threadId);
-    if (present != null && present.remove(author) && present.isEmpty()) {
-      presentMap.remove(threadId);
-    }
-
     notifyThread(threadId, false);
 
     Runnable timer = timers.get(typist);

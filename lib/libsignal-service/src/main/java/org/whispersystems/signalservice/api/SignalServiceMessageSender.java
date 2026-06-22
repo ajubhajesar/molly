@@ -122,6 +122,7 @@ import org.whispersystems.signalservice.internal.push.StoryMessage;
 import org.whispersystems.signalservice.internal.push.SyncMessage;
 import org.whispersystems.signalservice.internal.push.TextAttachment;
 import org.whispersystems.signalservice.internal.push.TypingMessage;
+import org.whispersystems.signalservice.internal.push.PresenceMessage;
 import org.whispersystems.signalservice.internal.push.Verified;
 import org.whispersystems.signalservice.internal.push.exceptions.InvalidUnidentifiedAccessHeaderException;
 import org.whispersystems.signalservice.internal.push.exceptions.MismatchedDevicesException;
@@ -942,7 +943,6 @@ public class SignalServiceMessageSender {
 
     if      (message.isTypingStarted()) builder.action(TypingMessage.Action.STARTED);
     else if (message.isTypingStopped()) builder.action(TypingMessage.Action.STOPPED);
-    else if (message.isPresent())       builder.action(TypingMessage.Action.PRESENT);
     else                                throw new IllegalArgumentException("Unknown typing indicator");
 
     if (message.getGroupId().isPresent()) {
@@ -950,6 +950,41 @@ public class SignalServiceMessageSender {
     }
 
     return container.typingMessage(builder.build()).build();
+  }
+
+  /**
+   * AJ fork: sends an independent presence ("active in chat") signal. Has no
+   * relationship to typing whatsoever, sent as its own Content message.
+   */
+  public void sendPresence(List<SignalServiceAddress> recipients,
+                            List<SealedSenderAccess> sealedSenderAccesses,
+                            org.whispersystems.signalservice.api.messages.SignalServicePresenceMessage message,
+                            CancelationSignal cancelationSignal)
+      throws IOException
+  {
+    Log.d(TAG, "[" + message.getTimestamp() + "] Sending a presence message to " + recipients.size() + " recipient(s) using 1:1 messages.");
+
+    Content         content         = createPresenceContent(message);
+    EnvelopeContent envelopeContent = EnvelopeContent.encrypted(content, ContentHint.IMPLICIT, Optional.empty());
+
+    sendMessage(recipients, sealedSenderAccesses, message.getTimestamp(), envelopeContent, true, null, cancelationSignal, null, false, false);
+  }
+
+  private Content createPresenceContent(org.whispersystems.signalservice.api.messages.SignalServicePresenceMessage message) {
+    Content.Builder         container = new Content.Builder();
+    PresenceMessage.Builder builder   = new PresenceMessage.Builder();
+
+    builder.timestamp(message.getTimestamp());
+
+    if      (message.isActive())   builder.action(PresenceMessage.Action.ACTIVE);
+    else if (message.isInactive()) builder.action(PresenceMessage.Action.INACTIVE);
+    else                           throw new IllegalArgumentException("Unknown presence action");
+
+    if (message.getGroupId().isPresent()) {
+      builder.groupId(ByteString.of(message.getGroupId().get()));
+    }
+
+    return container.presenceMessage(builder.build()).build();
   }
 
   private Content createStoryContent(SignalServiceStoryMessage message) throws IOException {

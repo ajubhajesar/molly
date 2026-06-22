@@ -80,17 +80,17 @@ public class TypingStatusSender {
   }
 
   /**
-   * AJ fork: minimal presence signal. Sends PRESENT when the conversation
-   * screen is resumed (foregrounded, unlocked, viewing this thread), and
-   * STOPPED when it's paused. No safety-expiry timer — relies purely on
-   * these two lifecycle calls firing reliably.
+   * AJ fork: fully independent presence ("active in chat") signal. Has no
+   * relationship to typing whatsoever - typing starting or stopping never
+   * touches this. Sent once when the conversation screen is resumed, and
+   * once when it's paused. No safety-expiry timer.
    */
   public void onConversationResumed(long threadId) {
-    AppDependencies.getJobManager().add(new TypingSendJob(threadId, false, true));
+    AppDependencies.getJobManager().add(new org.thoughtcrime.securesms.jobs.PresenceSendJob(threadId, true));
   }
 
   public void onConversationPaused(long threadId) {
-    AppDependencies.getJobManager().add(new TypingSendJob(threadId, false, false));
+    AppDependencies.getJobManager().add(new org.thoughtcrime.securesms.jobs.PresenceSendJob(threadId, false));
   }
 
   private class StartRunnable implements Runnable {

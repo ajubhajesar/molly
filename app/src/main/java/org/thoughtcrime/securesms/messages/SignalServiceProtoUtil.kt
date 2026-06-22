@@ -168,8 +168,8 @@ object SignalServiceProtoUtil {
   val TypingMessage.hasStarted: Boolean
     get() = action == TypingMessage.Action.STARTED
 
-  val TypingMessage.isPresent: Boolean
-    get() = action == TypingMessage.Action.PRESENT
+  val org.whispersystems.signalservice.internal.push.PresenceMessage.isActive: Boolean
+    get() = action == org.whispersystems.signalservice.internal.push.PresenceMessage.Action.ACTIVE
 
   fun ByteString.toDecryptionErrorMessage(metadata: EnvelopeMetadata): DecryptionErrorMessage {
     try {

@@ -1499,80 +1499,122 @@ class ConversationFragment :
    * Sleep loop (0-410) = present, not typing. Wake transition (410-450) plays once
    * on typing start. Awake hold (450-479) loops while typing continues. Reverse of
    * the wake transition plays once when typing stops before resuming the sleep loop.
+   *
+   * catUiState tracks what the UI is ACTUALLY doing right now (not just what the
+   * latest LiveData value says), so a redundant/duplicate emission of the same
+   * logical state is a no-op and never restarts or interrupts an in-flight animation.
    */
-  private var catIsAwake = false
+  private enum class CatUiState { HIDDEN, SLEEPING, WAKING, AWAKE, GOING_TO_SLEEP }
+  private var catUiState: CatUiState = CatUiState.HIDDEN
 
   private fun updatePresenceCat(isTyping: Boolean, isPresent: Boolean) {
     val cat = binding.conversationPresenceIndicator
+    val shouldShow = isTyping || isPresent
 
-    if (!isTyping && !isPresent) {
-      if (cat.visibility == View.VISIBLE) {
-        cat.animate()
-          .translationY(cat.height.toFloat())
-          .alpha(0f)
-          .setDuration(220)
-          .withEndAction {
+    if (!shouldShow) {
+      if (catUiState == CatUiState.HIDDEN) {
+        return // already hidden, nothing to do
+      }
+
+      catUiState = CatUiState.HIDDEN
+      cat.animate().cancel()
+      cat.pauseAnimation() // freeze in place, do NOT reset frame to 0
+      cat.animate()
+        .translationY(cat.height.toFloat())
+        .alpha(0f)
+        .setDuration(220)
+        .withEndAction {
+          // Re-check: presence may have returned during this 220ms fade.
+          if (catUiState == CatUiState.HIDDEN) {
             cat.cancelAnimation()
             cat.visibility = View.GONE
             cat.translationY = 0f
             cat.alpha = 1f
-            catIsAwake = false
           }
-          .start()
-      }
+        }
+        .start()
       return
     }
 
-    if (cat.visibility != View.VISIBLE) {
-      cat.visibility = View.VISIBLE
-      cat.alpha = 1f
+    // From here on, we know shouldShow == true.
+    val wasHidden = catUiState == CatUiState.HIDDEN
+
+    if (wasHidden) {
+      cat.animate().cancel()
       cat.translationY = 0f
-      cat.setMinAndMaxFrame(0, 410)
-      cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
-      cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
-      cat.playAnimation()
-      catIsAwake = false
+      cat.alpha = 1f
+      cat.visibility = View.VISIBLE
     }
 
-    if (isTyping && !catIsAwake) {
-      catIsAwake = true
-      cat.repeatCount = 0
-      cat.setMinAndMaxFrame(410, 450)
-      cat.removeAllAnimatorListeners()
-      cat.addAnimatorListener(object : android.animation.Animator.AnimatorListener {
-        override fun onAnimationEnd(animation: android.animation.Animator) {
-          cat.removeAnimatorListener(this)
-          cat.setMinAndMaxFrame(450, 479)
-          cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
-          cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
-          cat.playAnimation()
-        }
-        override fun onAnimationStart(animation: android.animation.Animator) = Unit
-        override fun onAnimationCancel(animation: android.animation.Animator) = Unit
-        override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
-      })
-      cat.playAnimation()
-    } else if (!isTyping && catIsAwake) {
-      catIsAwake = false
-      cat.repeatCount = 0
-      cat.setMinAndMaxFrame(410, 450)
-      cat.speed = -1f
-      cat.removeAllAnimatorListeners()
-      cat.addAnimatorListener(object : android.animation.Animator.AnimatorListener {
-        override fun onAnimationEnd(animation: android.animation.Animator) {
-          cat.removeAnimatorListener(this)
-          cat.speed = 1f
-          cat.setMinAndMaxFrame(0, 410)
-          cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
-          cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
-          cat.playAnimation()
-        }
-        override fun onAnimationStart(animation: android.animation.Animator) = Unit
-        override fun onAnimationCancel(animation: android.animation.Animator) = Unit
-        override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
-      })
-      cat.playAnimation()
+    when {
+      isTyping && (catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING) -> {
+        // Already awake or waking up - duplicate emission, do nothing.
+        return
+      }
+      !isTyping && (catUiState == CatUiState.SLEEPING || catUiState == CatUiState.GOING_TO_SLEEP) && !wasHidden -> {
+        // Already asleep or going to sleep - duplicate emission, do nothing.
+        return
+      }
+      isTyping -> startWakeTransition(cat)
+      else -> startSleepLoop(cat)
     }
+  }
+
+  private fun startSleepLoop(cat: com.airbnb.lottie.LottieAnimationView) {
+    catUiState = CatUiState.SLEEPING
+    cat.removeAllAnimatorListeners()
+    cat.speed = 1f
+    cat.setMinAndMaxFrame(0, 410)
+    cat.frame = 0
+    cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
+    cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+    cat.playAnimation()
+  }
+
+  private fun startWakeTransition(cat: com.airbnb.lottie.LottieAnimationView) {
+    catUiState = CatUiState.WAKING
+    cat.removeAllAnimatorListeners()
+    cat.repeatCount = 0
+    cat.speed = 2f
+    cat.setMinAndMaxFrame(410, 450)
+    cat.frame = 410
+    cat.addAnimatorListener(object : android.animation.Animator.AnimatorListener {
+      override fun onAnimationEnd(animation: android.animation.Animator) {
+        cat.removeAnimatorListener(this)
+        if (catUiState != CatUiState.WAKING) return // state changed mid-transition, let the newer call own it
+        catUiState = CatUiState.AWAKE
+        cat.speed = 1f
+        cat.setMinAndMaxFrame(450, 479)
+        cat.frame = 450
+        cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
+        cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+        cat.playAnimation()
+      }
+      override fun onAnimationStart(animation: android.animation.Animator) = Unit
+      override fun onAnimationCancel(animation: android.animation.Animator) = Unit
+      override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
+    })
+    cat.playAnimation()
+  }
+
+  private fun startSleepTransition(cat: com.airbnb.lottie.LottieAnimationView) {
+    catUiState = CatUiState.GOING_TO_SLEEP
+    cat.removeAllAnimatorListeners()
+    cat.repeatCount = 0
+    cat.setMinAndMaxFrame(410, 450)
+    cat.speed = -2f
+    cat.frame = 450
+    cat.addAnimatorListener(object : android.animation.Animator.AnimatorListener {
+      override fun onAnimationEnd(animation: android.animation.Animator) {
+        cat.removeAnimatorListener(this)
+        if (catUiState != CatUiState.GOING_TO_SLEEP) return
+        startSleepLoop(cat)
+      }
+      override fun onAnimationStart(animation: android.animation.Animator) = Unit
+      override fun onAnimationCancel(animation: android.animation.Animator) = Unit
+      override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
+    })
+    cat.playAnimation()
   }
 
   private fun presentStoryRing() {

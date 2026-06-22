@@ -13,32 +13,39 @@ import org.thoughtcrime.securesms.jobmanager.JsonJobData;
 import org.thoughtcrime.securesms.jobmanager.Job;
 import org.thoughtcrime.securesms.jobmanager.impl.NetworkConstraint;
 import org.thoughtcrime.securesms.jobmanager.impl.SealedSenderConstraint;
-import org.thoughtcrime.securesms.messages.GroupSendUtil;
 import org.thoughtcrime.securesms.net.NotPushRegisteredException;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.RecipientUtil;
-import org.thoughtcrime.securesms.util.TextSecurePreferences;
-import org.whispersystems.signalservice.api.messages.SignalServiceTypingMessage;
-import org.whispersystems.signalservice.api.messages.SignalServiceTypingMessage.Action;
+import org.whispersystems.signalservice.api.messages.SignalServicePresenceMessage;
+import org.whispersystems.signalservice.api.messages.SignalServicePresenceMessage.Action;
+import org.whispersystems.signalservice.api.push.SignalServiceAddress;
+import org.whispersystems.signalservice.api.SignalServiceMessageSender;
+import org.thoughtcrime.securesms.dependencies.AppDependencies;
+import org.thoughtcrime.securesms.crypto.SealedSenderAccessUtil;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-public class TypingSendJob extends BaseJob {
+/**
+ * AJ fork: sends the "active in chat" presence signal. Fully independent of
+ * TypingSendJob - has no relationship to typing whatsoever. Sent once when the
+ * conversation screen is resumed (active=true) and once when paused (active=false).
+ */
+public class PresenceSendJob extends BaseJob {
 
-  public static final String KEY = "TypingSendJob";
+  public static final String KEY = "PresenceSendJob";
 
-  private static final String TAG = Log.tag(TypingSendJob.class);
+  private static final String TAG = Log.tag(PresenceSendJob.class);
 
   private static final String KEY_THREAD_ID = "thread_id";
-  private static final String KEY_TYPING    = "typing";
+  private static final String KEY_ACTIVE    = "active";
 
   private long    threadId;
-  private boolean typing;
+  private boolean active;
 
-  public TypingSendJob(long threadId, boolean typing) {
+  public PresenceSendJob(long threadId, boolean active) {
     this(new Job.Parameters.Builder()
                            .setQueue(getQueue(threadId))
                            .setMaxAttempts(1)
@@ -48,25 +55,24 @@ public class TypingSendJob extends BaseJob {
                            .setMemoryOnly(true)
                            .build(),
          threadId,
-         typing);
+         active);
   }
 
   public static String getQueue(long threadId) {
-    return "TYPING_" + threadId;
+    return "PRESENCE_" + threadId;
   }
 
-  private TypingSendJob(@NonNull Job.Parameters parameters, long threadId, boolean typing) {
+  private PresenceSendJob(@NonNull Job.Parameters parameters, long threadId, boolean active) {
     super(parameters);
 
     this.threadId = threadId;
-    this.typing   = typing;
+    this.active   = active;
   }
-
 
   @Override
   public @Nullable byte[] serialize() {
     return new JsonJobData.Builder().putLong(KEY_THREAD_ID, threadId)
-                                    .putBoolean(KEY_TYPING, typing)
+                                    .putBoolean(KEY_ACTIVE, active)
                                     .serialize();
   }
 
@@ -81,41 +87,37 @@ public class TypingSendJob extends BaseJob {
       throw new NotPushRegisteredException();
     }
 
-    if (!TextSecurePreferences.isTypingIndicatorsEnabled(context)) {
-      return;
-    }
-
-    Log.d(TAG, "Sending typing " + (typing ? "started" : "stopped") + " for thread " + threadId);
+    Log.d(TAG, "Sending presence " + (active ? "active" : "inactive") + " for thread " + threadId);
 
     Recipient recipient = SignalDatabase.threads().getRecipientForThreadId(threadId);
 
     if (recipient == null) {
-      Log.w(TAG, "Tried to send a typing indicator to a non-existent thread.");
+      Log.w(TAG, "Tried to send a presence message to a non-existent thread.");
       return;
     }
 
     if (recipient.isBlocked()) {
-      Log.w(TAG, "Not sending typing indicators to blocked recipients.");
+      Log.w(TAG, "Not sending presence to blocked recipients.");
       return;
     }
 
     if (recipient.isSelf()) {
-      Log.w(TAG, "Not sending typing indicators to self.");
+      Log.w(TAG, "Not sending presence to self.");
       return;
     }
 
     if (recipient.isPushV1Group() || recipient.isMmsGroup()) {
-      Log.w(TAG, "Not sending typing indicators to unsupported groups.");
+      Log.w(TAG, "Not sending presence to unsupported groups.");
       return;
     }
 
     if (recipient.isPushV2Group() && !SignalDatabase.groups().isActive(recipient.requireGroupId())) {
-      Log.w(TAG, "Not sending typing indicators to terminated or inactive groups.");
+      Log.w(TAG, "Not sending presence to terminated or inactive groups.");
       return;
     }
 
     if (!recipient.isRegistered()) {
-      Log.w(TAG, "Not sending typing indicators to non-Signal recipients.");
+      Log.w(TAG, "Not sending presence to non-Signal recipients.");
       return;
     }
 
@@ -131,13 +133,21 @@ public class TypingSendJob extends BaseJob {
                                                            .map(Recipient::resolve)
                                                            .toList());
 
-    SignalServiceTypingMessage typingMessage = new SignalServiceTypingMessage(typing ? Action.STARTED : Action.STOPPED, System.currentTimeMillis(), groupId);
+    SignalServicePresenceMessage presenceMessage = new SignalServicePresenceMessage(active ? Action.ACTIVE : Action.INACTIVE, System.currentTimeMillis(), groupId);
 
-    GroupSendUtil.sendTypingMessage(context,
-                                    recipient.getGroupId().map(GroupId::requireV2).orElse(null),
-                                    recipients,
-                                    typingMessage,
-                                    this::isCanceled);
+    // NOTE: 1:1-only send path (client-side fanout via sendPresence). Unlike
+    // TypingSendJob, this does not use GroupSendUtil's sender-key group fanout -
+    // fine for this fork's 2-person use case, but presence in actual groups
+    // would need a sendGroupPresence equivalent added to SignalServiceMessageSender.
+    SignalServiceMessageSender messageSender = AppDependencies.getSignalServiceMessageSender();
+
+    List<SignalServiceAddress> addresses = RecipientUtil.toSignalServiceAddressesFromResolved(context, recipients);
+
+    List<org.thoughtcrime.securesms.crypto.SealedSenderAccess> sealedSenderAccesses = Stream.of(recipients)
+                                                  .map(SealedSenderAccessUtil::getSealedSenderAccessFor)
+                                                  .toList();
+
+    messageSender.sendPresence(addresses, sealedSenderAccesses, presenceMessage, this::isCanceled);
   }
 
   @Override
@@ -149,11 +159,11 @@ public class TypingSendJob extends BaseJob {
     return false;
   }
 
-  public static final class Factory implements Job.Factory<TypingSendJob> {
+  public static final class Factory implements Job.Factory<PresenceSendJob> {
     @Override
-    public @NonNull TypingSendJob create(@NonNull Parameters parameters, @Nullable byte[] serializedData) {
+    public @NonNull PresenceSendJob create(@NonNull Parameters parameters, @Nullable byte[] serializedData) {
       JsonJobData data = JsonJobData.deserialize(serializedData);
-      return new TypingSendJob(parameters, data.getLong(KEY_THREAD_ID), data.getBoolean(KEY_TYPING));
+      return new PresenceSendJob(parameters, data.getLong(KEY_THREAD_ID), data.getBoolean(KEY_ACTIVE));
     }
   }
 }
