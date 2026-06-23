@@ -268,13 +268,13 @@
 
     <com.airbnb.lottie.LottieAnimationView
         android:id="@+id/conversation_presence_indicator"
-        android:layout_width="67dp"
-        android:layout_height="36dp"
+        android:layout_width="92dp"
+        android:layout_height="50dp"
         android:layout_marginStart="12dp"
         android:layout_marginBottom="4dp"
         android:visibility="gone"
         app:lottie_rawRes="@raw/presence_cat_indicator"
-        app:layout_constraintBottom_toTopOf="@+id/conversation_input_panel"
+        app:layout_constraintBottom_toTopOf="@id/conversation_input_panel"
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         tools:visibility="visible" />
 
