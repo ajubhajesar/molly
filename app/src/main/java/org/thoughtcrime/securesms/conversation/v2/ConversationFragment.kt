@@ -1519,6 +1519,12 @@ class ConversationFragment :
       catUiState = CatUiState.HIDDEN
       cat.animate().cancel()
       cat.pauseAnimation() // freeze in place, do NOT reset frame to 0
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        0
+      )
       cat.animate()
         .translationY(cat.height.toFloat())
         .alpha(0f)
@@ -1544,6 +1550,13 @@ class ConversationFragment :
       cat.translationY = 0f
       cat.alpha = 1f
       cat.visibility = View.VISIBLE
+      val catPad = resources.getDimensionPixelSize(R.dimen.presence_cat_recycler_pad)
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        catPad
+      )
     }
 
     when {

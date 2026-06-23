@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="presence_cat_recycler_pad">58dp</dimen>
+</resources>
