@@ -35,7 +35,6 @@ import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasGroupContex
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasSignedGroupChange
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasStarted
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isExpirationUpdate
-import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isActive
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isMediaMessage
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isValid
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.signedGroupChange
@@ -523,10 +522,6 @@ open class MessageContentProcessor(private val context: Context) {
         handleTypingMessage(envelope, metadata, content.typingMessage!!, senderRecipient)
       }
 
-      content.presenceMessage != null -> {
-        handlePresenceMessage(envelope, metadata, content.presenceMessage!!, senderRecipient)
-      }
-
       content.storyMessage != null -> {
         StoryMessageProcessor.process(
           envelope,
@@ -604,54 +599,11 @@ open class MessageContentProcessor(private val context: Context) {
     }
 
     if (typingMessage.hasStarted) {
-      Log.d(TAG, "Typing started on thread $threadId")
+      Log.d(TAG, "Typing/heartbeat STARTED on thread $threadId")
       AppDependencies.typingStatusRepository.onTypingStarted(context, threadId, senderRecipient, metadata.sourceDeviceId)
     } else {
       Log.d(TAG, "Typing stopped on thread $threadId")
       AppDependencies.typingStatusRepository.onTypingStopped(threadId, senderRecipient, metadata.sourceDeviceId, false)
-    }
-  }
-
-  /**
-   * AJ fork: fully independent of typing. ACTIVE means the conversation screen is
-   * foregrounded/resumed. Typing starting or stopping never touches this state.
-   */
-  private fun handlePresenceMessage(
-    envelope: Envelope,
-    metadata: EnvelopeMetadata,
-    presenceMessage: org.whispersystems.signalservice.internal.push.PresenceMessage,
-    senderRecipient: Recipient
-  ) {
-    val threadId: Long = if (presenceMessage.groupId != null) {
-      val groupId = GroupId.push(presenceMessage.groupId!!)
-      if (!SignalDatabase.groups.isCurrentMember(groupId, senderRecipient.id)) {
-        warn(envelope.clientTimestamp!!, "Seen presence message for non-member " + senderRecipient.id)
-        return
-      }
-
-      val groupRecipient = Recipient.externalPossiblyMigratedGroup(groupId)
-
-      if (!groupRecipient.isActiveGroup) {
-        warn(envelope.clientTimestamp!!, "Seen presence message for inactive group " + senderRecipient.id)
-        return
-      }
-
-      SignalDatabase.threads.getOrCreateThreadIdFor(groupRecipient)
-    } else {
-      SignalDatabase.threads.getOrCreateThreadIdFor(senderRecipient)
-    }
-
-    if (threadId <= 0) {
-      warn(envelope.clientTimestamp!!, "Couldn't find a matching thread for a presence message.")
-      return
-    }
-
-    if (presenceMessage.isActive) {
-      Log.d(TAG, "Presence: active on thread $threadId")
-      AppDependencies.typingStatusRepository.onPresent(threadId, senderRecipient)
-    } else {
-      Log.d(TAG, "Presence: inactive on thread $threadId")
-      AppDependencies.typingStatusRepository.onNotPresent(threadId, senderRecipient)
     }
   }
 
