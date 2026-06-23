@@ -52,6 +52,7 @@
             android:layout_height="match_parent"
             android:clipChildren="false"
             android:clipToPadding="false"
+            android:paddingBottom="58dp"
             android:overScrollMode="ifContentScrolls"
             android:scrollbars="vertical"
             android:splitMotionEvents="false"
@@ -110,6 +111,7 @@
             android:layout_height="match_parent"
             android:clipChildren="false"
             android:clipToPadding="false"
+            android:paddingBottom="58dp"
             android:orientation="horizontal">
 
             <include
