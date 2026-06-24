@@ -376,13 +376,21 @@ class IncomingMessageObserver(
       Log.i(TAG, "Initializing! (${this.hashCode()})")
       uncaughtExceptionHandler = this
 
-      val noBackgroundSleep = SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND
-      sleepTimer = if (noBackgroundSleep) {
-        UptimeSleepTimer()
-      } else if (!SignalStore.account.pushAvailable || SignalStore.internal.isWebsocketModeForced) {
-        AlarmSleepTimer(context)
-      } else {
-        UptimeSleepTimer()
+      // AJ fork: re-check the NO_BACKGROUND setting live on every sleep() call
+      // instead of locking in a fixed AlarmSleepTimer/UptimeSleepTimer once at
+      // thread creation. Without this, toggling "No background notifications"
+      // after the app/observer already started had no effect for the rest of
+      // that app session, since the old timer instance kept running.
+      val alarmSleepTimer  = AlarmSleepTimer(context)
+      val uptimeSleepTimer = UptimeSleepTimer()
+      sleepTimer = SleepTimer { millis ->
+        val noBackgroundSleep = SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND
+        val useAlarm = !noBackgroundSleep && (!SignalStore.account.pushAvailable || SignalStore.internal.isWebsocketModeForced)
+        if (useAlarm) {
+          alarmSleepTimer.sleep(millis)
+        } else {
+          uptimeSleepTimer.sleep(millis)
+        }
       }
 
       canProcessMessages = !SignalStore.registration.restoreDecisionState.isDecisionPending
