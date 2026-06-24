@@ -79,7 +79,11 @@ class IncomingMessageObserver(
 
     /** How long the websocket is allowed to keep running after the user backgrounds the app. Higher numbers allow us to rely on FCM less. */
     private val maxBackgroundTime: Long
-      get() = if (censored) 10.seconds.inWholeMilliseconds else 2.minutes.inWholeMilliseconds
+      get() = when {
+        censored -> 10.seconds.inWholeMilliseconds
+        SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND -> 0L
+        else -> 2.minutes.inWholeMilliseconds
+      }
 
     const val FOREGROUND_ID = 313399
 
@@ -376,21 +380,13 @@ class IncomingMessageObserver(
       Log.i(TAG, "Initializing! (${this.hashCode()})")
       uncaughtExceptionHandler = this
 
-      // AJ fork: re-check the NO_BACKGROUND setting live on every sleep() call
-      // instead of locking in a fixed AlarmSleepTimer/UptimeSleepTimer once at
-      // thread creation. Without this, toggling "No background notifications"
-      // after the app/observer already started had no effect for the rest of
-      // that app session, since the old timer instance kept running.
-      val alarmSleepTimer  = AlarmSleepTimer(context)
-      val uptimeSleepTimer = UptimeSleepTimer()
-      sleepTimer = SleepTimer { millis ->
-        val noBackgroundSleep = SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND
-        val useAlarm = !noBackgroundSleep && (!SignalStore.account.pushAvailable || SignalStore.internal.isWebsocketModeForced)
-        if (useAlarm) {
-          alarmSleepTimer.sleep(millis)
-        } else {
-          uptimeSleepTimer.sleep(millis)
-        }
+      val noBackgroundSleep = SignalStore.settings.preferredNotificationMethod == org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND
+      sleepTimer = if (noBackgroundSleep) {
+        UptimeSleepTimer()
+      } else if (!SignalStore.account.pushAvailable || SignalStore.internal.isWebsocketModeForced) {
+        AlarmSleepTimer(context)
+      } else {
+        UptimeSleepTimer()
       }
 
       canProcessMessages = !SignalStore.registration.restoreDecisionState.isDecisionPending

@@ -14,6 +14,9 @@ import com.google.firebase.installations.FirebaseInstallationsException;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 import org.signal.core.util.logging.Log;
+import org.thoughtcrime.securesms.dependencies.AppDependencies;
+import org.thoughtcrime.securesms.keyvalue.SignalStore;
+import org.thoughtcrime.securesms.keyvalue.SettingsValues;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -36,6 +39,12 @@ public final class FcmUtil {
 
   @WorkerThread
   public static Optional<String> getTokenWithoutAvailCheck(Context context) {
+    // AJ fork: skip Firebase entirely when NO_BACKGROUND is selected
+    if (SignalStore.settings().getPreferredNotificationMethod() == SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND) {
+      Log.i(TAG, "NO_BACKGROUND mode: skipping Firebase init.");
+      return Optional.empty();
+    }
+
     String token = null;
 
     FirebaseApp.initializeApp(context);
