@@ -164,6 +164,7 @@ android {
   }
 
   defaultConfig {
+    resConfigs("en")
     val sourceVersionNameWithRevision = "${canonicalVersionName}-${mollyRevision}"
 
     versionCode = (canonicalVersionCode * maxHotfixVersions) + mollyRevision + currentHotfixVersion
