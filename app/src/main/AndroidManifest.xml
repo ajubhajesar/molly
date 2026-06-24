@@ -1592,5 +1592,11 @@
 
         </provider>
 
+    <!-- AJ fork: prevent Firebase from auto-initializing at startup -->
+    <provider
+        android:name="com.google.firebase.provider.FirebaseInitProvider"
+        android:authorities="${applicationId}.firebaseinitprovider"
+        tools:node="remove" />
+
     </application>
 </manifest>
