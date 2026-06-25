@@ -20,6 +20,8 @@ import org.thoughtcrime.securesms.jobs.MessageFetchJob;
 import org.thoughtcrime.securesms.service.ExportedBroadcastReceiver;
 import org.thoughtcrime.securesms.util.AppForegroundObserver;
 import org.thoughtcrime.securesms.util.RemoteConfig;
+import org.thoughtcrime.securesms.keyvalue.SignalStore;
+import org.thoughtcrime.securesms.keyvalue.SettingsValues;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -43,6 +45,11 @@ public final class RoutineMessageFetchReceiver extends ExportedBroadcastReceiver
       Log.i(TAG, "Starting Alarm because of boot receiver");
       startOrUpdateAlarm(context);
     } else if (BROADCAST_ACTION.equals(intent.getAction())) {
+
+      if (SignalStore.settings().getPreferredNotificationMethod() == SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND) {
+        Log.i(TAG, "NO_BACKGROUND: skipping routine message fetch.");
+        return;
+      }
 
       if (AppForegroundObserver.isForegrounded()) {
         Log.i(TAG, "App is foregrounded");
@@ -79,9 +86,11 @@ public final class RoutineMessageFetchReceiver extends ExportedBroadcastReceiver
 
     long interval = RemoteConfig.getBackgroundMessageProcessInterval();
 
-    if (interval < 0) {
+    boolean noBackground = SignalStore.settings().getPreferredNotificationMethod() == SettingsValues.NotificationDeliveryMethod.NO_BACKGROUND;
+
+    if (interval < 0 || noBackground) {
       alarmManager.cancel(pendingIntent);
-      Log.i(TAG, "Alarm cancelled");
+      Log.i(TAG, "Alarm cancelled (interval=" + interval + ", noBackground=" + noBackground + ")");
     } else {
       alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP,
                                 SystemClock.elapsedRealtime() + interval,
