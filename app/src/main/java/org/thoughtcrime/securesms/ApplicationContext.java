@@ -638,6 +638,19 @@ public class ApplicationContext extends Application implements AppForegroundObse
   }
 
   private void initializePeriodicTasks() {
+    // AJ fork: when "No background notifications" is selected, skip arming
+    // every AlarmManager wake-up alarm entirely (pre-key rotation, directory
+    // refresh, backups, sender certificate rotation, database analysis).
+    // These use setExactAndAllowWhileIdle/RTC_WAKEUP, which forces a full
+    // app cold-start to deliver the broadcast even from a fully dead process.
+    // The setting was already correctly stopping the websocket/notification
+    // path, but these alarms run completely independently of that and kept
+    // waking the process regardless.
+    if (SignalStore.settings().getPreferredNotificationMethod() == NotificationDeliveryMethod.NO_BACKGROUND) {
+      Log.i(TAG, "NO_BACKGROUND is set - skipping all periodic alarm scheduling.");
+      return;
+    }
+
     RotateSignedPreKeyListener.schedule(this);
     DirectoryRefreshListener.schedule(this);
     LocalBackupListener.schedule(this);
