@@ -27,6 +27,25 @@ public abstract class PersistentAlarmManagerListener extends ExportedBroadcastRe
 
   protected abstract long onAlarm(Context context, long scheduledTime);
 
+  /**
+   * AJ fork: cancels any already-armed AlarmManager wake-up alarm for a given
+   * listener class, regardless of whether this process instance is the one
+   * that originally scheduled it. Builds the exact same PendingIntent the
+   * schedule path uses (request code 0, immutable, Intent(context, clazz)),
+   * which is required for AlarmManager.cancel() to actually match and remove
+   * the pending alarm from the OS.
+   */
+  public static void cancel(@NonNull Context context, @NonNull Class<? extends PersistentAlarmManagerListener> clazz) {
+    AlarmManager  alarmManager  = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+    Intent        alarmIntent   = new Intent(context, clazz);
+    PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, alarmIntent, PendingIntentFlags.immutable());
+
+    if (alarmManager != null && pendingIntent != null) {
+      alarmManager.cancel(pendingIntent);
+      Log.i(TAG, "Cancelled alarm for " + clazz.getSimpleName());
+    }
+  }
+
   @Override
   public void onReceiveUnlock(Context context, Intent intent) {
     info(String.format("onReceive(%s)", intent.getAction()));

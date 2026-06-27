@@ -111,6 +111,7 @@ import org.thoughtcrime.securesms.service.KeyCachingService;
 import org.thoughtcrime.securesms.service.LocalBackupListener;
 import org.thoughtcrime.securesms.service.MessageBackupListener;
 import org.thoughtcrime.securesms.service.RotateSenderCertificateListener;
+import org.thoughtcrime.securesms.service.PersistentAlarmManagerListener;
 import org.thoughtcrime.securesms.service.RotateSignedPreKeyListener;
 import org.thoughtcrime.securesms.service.WipeMemoryService;
 import org.thoughtcrime.securesms.service.webrtc.ActiveCallManager;
@@ -638,16 +639,25 @@ public class ApplicationContext extends Application implements AppForegroundObse
   }
 
   private void initializePeriodicTasks() {
-    // AJ fork: when "No background notifications" is selected, skip arming
-    // every AlarmManager wake-up alarm entirely (pre-key rotation, directory
-    // refresh, backups, sender certificate rotation, database analysis).
-    // These use setExactAndAllowWhileIdle/RTC_WAKEUP, which forces a full
-    // app cold-start to deliver the broadcast even from a fully dead process.
-    // The setting was already correctly stopping the websocket/notification
-    // path, but these alarms run completely independently of that and kept
-    // waking the process regardless.
+    // AJ fork: when "No background notifications" is selected, cancel every
+    // AlarmManager wake-up alarm (pre-key rotation, directory refresh, local
+    // and remote backups, sender certificate rotation, database analysis)
+    // instead of scheduling them. These use setExactAndAllowWhileIdle/
+    // RTC_WAKEUP, which forces a full app cold-start to deliver the broadcast
+    // even from a fully dead process. Calling cancel() (not just skipping the
+    // schedule call) also removes any alarm that was already armed in a
+    // previous app session before this setting was turned on or before this
+    // patch existed - otherwise those linger in the OS's AlarmManager queue
+    // and keep firing on their old schedule until naturally exhausted.
     if (SignalStore.settings().getPreferredNotificationMethod() == NotificationDeliveryMethod.NO_BACKGROUND) {
-      Log.i(TAG, "NO_BACKGROUND is set - skipping all periodic alarm scheduling.");
+      Log.i(TAG, "NO_BACKGROUND is set - cancelling all periodic alarms.");
+      PersistentAlarmManagerListener.cancel(this, RotateSignedPreKeyListener.class);
+      PersistentAlarmManagerListener.cancel(this, DirectoryRefreshListener.class);
+      PersistentAlarmManagerListener.cancel(this, LocalBackupListener.class);
+      PersistentAlarmManagerListener.cancel(this, MessageBackupListener.class);
+      PersistentAlarmManagerListener.cancel(this, RotateSenderCertificateListener.class);
+      PersistentAlarmManagerListener.cancel(this, AnalyzeDatabaseAlarmListener.class);
+      RoutineMessageFetchReceiver.startOrUpdateAlarm(this); // already NO_BACKGROUND-aware, self-cancels
       return;
     }
 
