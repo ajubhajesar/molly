@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="focus_mode_enter">Focus Mode</string>
+    <string name="focus_mode_exit">Exit Focus Mode</string>
+</resources>

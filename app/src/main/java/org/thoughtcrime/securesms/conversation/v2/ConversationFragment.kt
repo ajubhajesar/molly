@@ -83,6 +83,12 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.BaseTransientBottomBar.Duration
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.transition.platform.MaterialContainerTransformSharedElementCallback
+import android.animation.ObjectAnimator
+import android.view.ViewStub
+import android.view.inputmethod.EditorInfo
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Single
@@ -595,6 +601,17 @@ class ConversationFragment :
   private val inputPanel: InputPanel
     get() = binding.conversationInputPanel.root
 
+  // ── Focus Mode ────────────────────────────────────────────────────────────
+  private var focusModeOverlay: android.view.View? = null
+  private var focusRecycler: androidx.recyclerview.widget.RecyclerView? = null
+  private var focusDot: android.view.View? = null
+  private var focusDraftText: android.widget.TextView? = null
+  private val focusAdapter = FocusModeAdapter()
+  private var lastKnownMessages: List<org.thoughtcrime.securesms.conversation.ConversationMessage> = emptyList()
+  private var dotPulseAnim: ObjectAnimator? = null
+  private var focusModeActive = false
+  // ──────────────────────────────────────────────────────────────────────────
+
   private val composeText: ComposeText
     get() = binding.conversationInputPanel.embeddedTextEditor
 
@@ -656,6 +673,9 @@ class ConversationFragment :
     }
 
     disposables.bindTo(viewLifecycleOwner)
+
+    // Focus Mode entry button
+    binding.conversationFocusModeBtn.setOnClickListener { enterFocusMode() }
 
     if (requireActivity() is ConversationActivity) {
       FullscreenHelper(requireActivity()).showSystemUI()
@@ -1137,6 +1157,8 @@ class ConversationFragment :
           SignalLocalMetrics.ConversationOpen.onDataPostedToMain()
         }
 
+        lastKnownMessages = it
+        if (focusModeActive) focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(it))
         adapter.submitList(it) {
           scrollToPositionDelegate.notifyListCommitted()
           conversationItemDecorations.currentItems = it
@@ -1174,6 +1196,14 @@ class ConversationFragment :
     if (requireActivity() is ConversationActivity) {
       val backPressedCallback = BackPressedCallback()
       requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
+
+      // Focus Mode back-press (higher priority — added after, so evaluated first)
+      val focusModeBackCallback = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() { exitFocusMode() }
+      }
+      requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, focusModeBackCallback)
+      // Store reference so enterFocusMode/exitFocusMode can toggle isEnabled
+      binding.root.tag = focusModeBackCallback
 
       lifecycleScope.launch {
         repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -1491,6 +1521,7 @@ class ConversationFragment :
       val isPresent = it.present.isNotEmpty()
 
       updatePresenceCat(isTyping, isPresent)
+      if (focusModeActive) updateFocusDot(isTyping, isPresent)
     }
   }
 
@@ -2479,6 +2510,88 @@ class ConversationFragment :
 
     viewModel.updateStickerLastUsedTime(stickerRecord, System.currentTimeMillis().milliseconds)
   }
+
+  // ── Focus Mode ────────────────────────────────────────────────────────────
+
+  private fun enterFocusMode() {
+    focusModeActive = true
+    if (focusModeOverlay == null) {
+      val stub = binding.root.findViewById<ViewStub>(R.id.focus_mode_stub)
+      val inflated = stub.inflate()
+      focusModeOverlay = inflated
+      focusRecycler = inflated.findViewById(R.id.focus_recycler)
+      focusDot = inflated.findViewById(R.id.focus_presence_dot)
+      focusDraftText = inflated.findViewById(R.id.focus_draft_text)
+
+      focusRecycler!!.apply {
+        layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext()).also {
+          it.stackFromEnd = true
+        }
+        adapter = focusAdapter
+      }
+
+      inflated.findViewById<android.view.View>(R.id.focus_exit_button)
+        .setOnClickListener { exitFocusMode() }
+
+      composeText.setOnEditorActionListener { _, actionId, _ ->
+        if (focusModeActive && (actionId == EditorInfo.IME_ACTION_SEND || actionId == EditorInfo.IME_ACTION_DONE)) {
+          val text = composeText.textTrimmed.toString()
+          if (text.isNotBlank()) sendMessage(body = text)
+          true
+        } else false
+      }
+    }
+
+    focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(lastKnownMessages))
+    focusModeOverlay!!.alpha = 0f
+    focusModeOverlay!!.visibility = android.view.View.VISIBLE
+    focusModeOverlay!!.animate().alpha(1f).setDuration(280).start()
+    (binding.root.tag as? androidx.activity.OnBackPressedCallback)?.isEnabled = true
+
+    val window = requireActivity().window
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    WindowInsetsControllerCompat(window, window.decorView).apply {
+      hide(WindowInsetsCompat.Type.systemBars())
+      systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+    container.showSoftkey(composeText)
+  }
+
+  private fun exitFocusMode() {
+    focusModeActive = false
+    stopDotPulse()
+    focusDraftText?.visibility = android.view.View.GONE
+    focusModeOverlay?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
+      focusModeOverlay?.visibility = android.view.View.GONE
+    }?.start()
+    (binding.root.tag as? androidx.activity.OnBackPressedCallback)?.isEnabled = false
+    val window = requireActivity().window
+    WindowCompat.setDecorFitsSystemWindows(window, true)
+    WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+  }
+
+  private fun updateFocusDot(isTyping: Boolean, isPresent: Boolean) {
+    val dot = focusDot ?: return
+    when {
+      isTyping  -> { dot.visibility = android.view.View.VISIBLE; startDotPulse() }
+      isPresent -> { dot.visibility = android.view.View.VISIBLE; stopDotPulse(); dot.alpha = 1f }
+      else      -> { dot.visibility = android.view.View.INVISIBLE; stopDotPulse() }
+    }
+  }
+
+  private fun startDotPulse() {
+    if (dotPulseAnim?.isRunning == true) return
+    dotPulseAnim = ObjectAnimator.ofFloat(focusDot, "alpha", 0.2f, 1f).apply {
+      duration = 800
+      repeatMode = android.animation.ValueAnimator.REVERSE
+      repeatCount = android.animation.ValueAnimator.INFINITE
+      start()
+    }
+  }
+
+  private fun stopDotPulse() { dotPulseAnim?.cancel(); dotPulseAnim = null }
+
+  // ──────────────────────────────────────────────────────────────────────────
 
   private fun sendMessageWithoutComposeInput(
     slide: Slide? = null,
@@ -4835,6 +4948,12 @@ class ConversationFragment :
     override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
       handleSaveDraftOnTextChange(composeText.textTrimmed)
       handleTypingIndicatorOnTextChange(s.toString())
+      // Focus Mode draft
+      val draft = s.toString().trim()
+      focusDraftText?.apply {
+        if (draft.isEmpty()) { visibility = android.view.View.GONE }
+        else { text = draft; visibility = android.view.View.VISIBLE }
+      }
     }
 
     private fun handleSaveDraftOnTextChange(text: CharSequence) {

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Message list -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/focus_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginBottom="64dp"
+        android:clipToPadding="false"
+        android:paddingTop="48dp"
+        android:paddingBottom="24dp"
+        android:overScrollMode="never" />
+
+    <!-- Presence dot + draft text anchored to bottom -->
+    <LinearLayout
+        android:id="@+id/focus_bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingBottom="16dp"
+        android:paddingHorizontal="24dp">
+
+        <!-- Draft text floating above keyboard -->
+        <TextView
+            android:id="@+id/focus_draft_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:alpha="0.5"
+            android:fontFamily="sans-serif-light"
+            android:gravity="center"
+            android:textColor="#FFFFFFFF"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+        <!-- Presence dot -->
+        <View
+            android:id="@+id/focus_presence_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_gravity="center"
+            android:background="@drawable/focus_mode_dot"
+            android:visibility="invisible" />
+
+    </LinearLayout>
+
+    <!-- Exit button top-right -->
+    <ImageView
+        android:id="@+id/focus_exit_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:alpha="0.4"
+        android:contentDescription="@string/focus_mode_exit"
+        android:padding="12dp"
+        android:src="@drawable/ic_x_24"
+        android:tint="#FFFFFFFF" />
+
+</FrameLayout>
