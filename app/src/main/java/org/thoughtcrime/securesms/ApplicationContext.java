@@ -18,7 +18,9 @@ package org.thoughtcrime.securesms;
 
 import android.app.Application;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.content.Intent;
 import android.content.IntentFilter;
 
@@ -650,7 +652,7 @@ public class ApplicationContext extends Application implements AppForegroundObse
     // patch existed - otherwise those linger in the OS's AlarmManager queue
     // and keep firing on their old schedule until naturally exhausted.
     if (SignalStore.settings().getPreferredNotificationMethod() == NotificationDeliveryMethod.NO_BACKGROUND) {
-      Log.i(TAG, "NO_BACKGROUND is set - cancelling all periodic alarms.");
+      Log.i(TAG, "NO_BACKGROUND is set - cancelling all periodic alarms and disabling receivers.");
       PersistentAlarmManagerListener.cancel(this, RotateSignedPreKeyListener.class);
       PersistentAlarmManagerListener.cancel(this, DirectoryRefreshListener.class);
       PersistentAlarmManagerListener.cancel(this, LocalBackupListener.class);
@@ -658,8 +660,10 @@ public class ApplicationContext extends Application implements AppForegroundObse
       PersistentAlarmManagerListener.cancel(this, RotateSenderCertificateListener.class);
       PersistentAlarmManagerListener.cancel(this, AnalyzeDatabaseAlarmListener.class);
       RoutineMessageFetchReceiver.startOrUpdateAlarm(this); // already NO_BACKGROUND-aware, self-cancels
+      setBackgroundReceiversEnabled(false);
       return;
     }
+    setBackgroundReceiversEnabled(true);
 
     RotateSignedPreKeyListener.schedule(this);
     DirectoryRefreshListener.schedule(this);
@@ -672,6 +676,28 @@ public class ApplicationContext extends Application implements AppForegroundObse
     if (TextSecurePreferences.isUpdateApkEnabled(this)) {
       ApkUpdateRefreshListener.scheduleIfAllowed(this);
     }
+  }
+
+  /** Enables or disables broadcast receivers that can wake the process from a dead state. */
+  private void setBackgroundReceiversEnabled(boolean enabled) {
+    int state = enabled
+        ? PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+        : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+    int flags = PackageManager.DONT_KILL_APP;
+    PackageManager pm = getPackageManager();
+    Class<?>[] receivers = {
+        org.thoughtcrime.securesms.messageprocessingalarm.RoutineMessageFetchReceiver.class,
+        org.thoughtcrime.securesms.service.DirectoryRefreshListener.class,
+        org.thoughtcrime.securesms.service.LocalBackupListener.class,
+        org.thoughtcrime.securesms.service.MessageBackupListener.class,
+        org.thoughtcrime.securesms.service.RotateSenderCertificateListener.class,
+        org.thoughtcrime.securesms.service.AnalyzeDatabaseAlarmListener.class,
+        org.thoughtcrime.securesms.service.BootReceiver.class,
+    };
+    for (Class<?> receiver : receivers) {
+      pm.setComponentEnabledSetting(new ComponentName(this, receiver), state, flags);
+    }
+    Log.i(TAG, "Background receivers " + (enabled ? "enabled" : "disabled") + ".");
   }
 
   private void initializeRingRtc() {
