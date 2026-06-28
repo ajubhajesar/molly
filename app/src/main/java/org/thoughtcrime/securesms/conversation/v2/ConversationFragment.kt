@@ -1157,8 +1157,13 @@ class ConversationFragment :
 
         lastKnownMessages = it.filterIsInstance<org.thoughtcrime.securesms.conversation.v2.data.ConversationMessageElement>().map { el -> el.conversationMessage }
         if (focusModeActive) {
-          focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(lastKnownMessages)) {
-            focusRecycler?.scrollToPosition(focusAdapter.itemCount - 1)
+          val newList = FocusModeAdapter.fromConversationMessages(lastKnownMessages)
+          focusAdapter.submitList(newList) {
+            val last = newList.size - 1
+            if (last >= 0) {
+              focusAdapter.lastVisiblePosition = last
+              focusRecycler?.scrollToPosition(last)
+            }
           }
         }
         adapter.submitList(it) {
@@ -2539,14 +2544,14 @@ class ConversationFragment :
       focusRecycler!!.apply {
         layoutManager = focusLM
         adapter = focusAdapter
-        // Scroll listener: update lastVisiblePosition for opacity calculation
         addOnScrollListener(object : RecyclerView.OnScrollListener() {
           override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
-            focusAdapter.lastVisiblePosition = focusLM.findLastVisibleItemPosition()
-            focusAdapter.notifyItemRangeChanged(
-              focusLM.findFirstVisibleItemPosition(),
-              focusLM.findLastVisibleItemPosition() - focusLM.findFirstVisibleItemPosition() + 1
-            )
+            val last = focusLM.findLastVisibleItemPosition()
+            if (last != RecyclerView.NO_POSITION) {
+              focusAdapter.lastVisiblePosition = last
+              val first = focusLM.findFirstVisibleItemPosition()
+              focusAdapter.notifyItemRangeChanged(first, last - first + 1)
+            }
           }
         })
       }
@@ -2555,6 +2560,17 @@ class ConversationFragment :
       inflated.findViewById<android.view.View>(R.id.focus_align_toggle).setOnClickListener {
         focusAdapter.isLeftRightMode = !focusAdapter.isLeftRightMode
         focusAdapter.notifyDataSetChanged()
+      }
+
+      // Send button
+      val focusInput = inflated.findViewById<android.widget.EditText>(R.id.focus_input)
+      inflated.findViewById<android.view.View>(R.id.focus_send_btn).setOnClickListener {
+        val text = focusInput.text.toString().trim()
+        if (text.isNotBlank()) {
+          sendMessage(body = text)
+          focusInput.setText("")
+          focusRecycler?.scrollToPosition(focusAdapter.itemCount - 1)
+        }
       }
 
       // Input field: send on IME action, clear after send

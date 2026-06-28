@@ -1,7 +1,6 @@
 package org.thoughtcrime.securesms.conversation.v2
 
 import android.graphics.Typeface
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -12,17 +11,21 @@ import org.thoughtcrime.securesms.conversation.ConversationMessage
 
 /**
  * AJ fork: Focus Mode adapter.
- * Opacity is scroll-driven: fully visible at bottom of viewport, fades as distance from bottom increases.
- * Supports center mode and left/right mode toggle.
+ *
+ * Center mode (default):
+ *   outgoing: text slightly LEFT of center  →  "text <"  paddingEnd=96
+ *   incoming: text slightly RIGHT of center →  "> text"  paddingStart=96
+ *
+ * LR mode (toggle):
+ *   outgoing: right-aligned   incoming: left-aligned
+ *
+ * Opacity is scroll-driven via lastVisiblePosition.
  */
 class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapter.ViewHolder>(DIFF) {
 
   data class FocusItem(val text: String, val isOutgoing: Boolean)
 
-  /** Last visible item position — updated by scroll listener */
-  var lastVisiblePosition: Int = Int.MAX_VALUE
-
-  /** Toggle: false = center, true = left/right offset */
+  var lastVisiblePosition: Int = 0
   var isLeftRightMode: Boolean = false
 
   class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -39,7 +42,7 @@ class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapte
       setTextColor(0xFFEEEEEE.toInt())
       typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
       letterSpacing = 0.02f
-      setLineSpacing(0f, 1.3f)
+      setLineSpacing(0f, 1.4f)
     }
     return ViewHolder(tv)
   }
@@ -47,32 +50,40 @@ class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapte
   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
     val item = getItem(position)
 
-    // Text + alignment
     if (isLeftRightMode) {
+      // Full left/right
       if (item.isOutgoing) {
         holder.tv.text = "${item.text}  \u003C"
-        holder.tv.setPadding(96, 11, 40, 11)
+        holder.tv.setPadding(40, 12, 40, 12)
         holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
       } else {
         holder.tv.text = "\u003E  ${item.text}"
-        holder.tv.setPadding(40, 11, 96, 11)
+        holder.tv.setPadding(40, 12, 40, 12)
         holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
       }
     } else {
-      // Center mode
-      holder.tv.text = if (item.isOutgoing) "${item.text}  \u003C" else "\u003E  ${item.text}"
-      holder.tv.setPadding(56, 11, 56, 11)
-      holder.tv.textAlignment = View.TEXT_ALIGNMENT_CENTER
+      // Center mode: outgoing nudged LEFT, incoming nudged RIGHT
+      if (item.isOutgoing) {
+        holder.tv.text = "${item.text}  \u003C"
+        // more padding on right pushes text left of center
+        holder.tv.setPadding(48, 12, 112, 12)
+        holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
+      } else {
+        holder.tv.text = "\u003E  ${item.text}"
+        // more padding on left pushes text right of center
+        holder.tv.setPadding(112, 12, 48, 12)
+        holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+      }
     }
 
-    // Scroll-driven opacity: distance from bottom of visible area
+    // Scroll-driven opacity
     val distFromBottom = lastVisiblePosition - position
     holder.tv.alpha = when {
-      distFromBottom <= 0  -> 1.0f   // at or below last visible = full
-      distFromBottom <= 3  -> 0.85f
-      distFromBottom <= 7  -> 0.55f
-      distFromBottom <= 13 -> 0.28f
-      else                 -> 0.10f
+      distFromBottom <= 1  -> 1.0f
+      distFromBottom <= 4  -> 0.80f
+      distFromBottom <= 8  -> 0.50f
+      distFromBottom <= 14 -> 0.25f
+      else                 -> 0.08f
     }
   }
 

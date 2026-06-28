@@ -6,7 +6,7 @@
     android:background="#000000"
     android:orientation="vertical">
 
-    <!-- Align toggle button top-right -->
+    <!-- Align toggle top-right -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="40dp">
@@ -17,14 +17,14 @@
             android:layout_height="wrap_content"
             android:layout_gravity="end|center_vertical"
             android:layout_marginEnd="16dp"
-            android:alpha="0.35"
+            android:alpha="0.3"
+            android:clickable="true"
+            android:focusable="true"
             android:fontFamily="sans-serif-light"
+            android:padding="8dp"
             android:text="⇌"
             android:textColor="#FFFFFFFF"
-            android:textSize="18sp"
-            android:padding="8dp"
-            android:clickable="true"
-            android:focusable="true" />
+            android:textSize="18sp" />
 
     </FrameLayout>
 
@@ -38,15 +38,14 @@
         android:overScrollMode="never"
         android:paddingBottom="8dp" />
 
-    <!-- Bottom: presence dot + input -->
+    <!-- Bottom: presence dot + input row + send button -->
     <LinearLayout
         android:id="@+id/focus_bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="32dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="16dp">
+        android:paddingBottom="16dp"
+        android:paddingTop="8dp">
 
         <View
             android:id="@+id/focus_presence_dot"
@@ -57,20 +56,43 @@
             android:background="@drawable/focus_mode_dot"
             android:visibility="invisible" />
 
-        <EditText
-            android:id="@+id/focus_input"
+        <!-- Input + send on same row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@null"
-            android:fontFamily="sans-serif-light"
-            android:gravity="center"
-            android:hint="Message"
-            android:imeOptions="actionSend|flagNoEnterAction"
-            android:inputType="text"
-            android:textColor="#FFFFFFFF"
-            android:textColorHint="#44FFFFFF"
-            android:textCursorDrawable="@null"
-            android:textSize="16sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="24dp">
+
+            <EditText
+                android:id="@+id/focus_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@null"
+                android:fontFamily="sans-serif-light"
+                android:gravity="center"
+                android:hint="Message"
+                android:imeOptions="flagNoEnterAction"
+                android:inputType="text"
+                android:textColor="#FFFFFFFF"
+                android:textColorHint="#44FFFFFF"
+                android:textCursorDrawable="@null"
+                android:textSize="16sp" />
+
+            <ImageView
+                android:id="@+id/focus_send_btn"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:alpha="0.75"
+                android:clickable="true"
+                android:contentDescription="Send"
+                android:focusable="true"
+                android:padding="8dp"
+                android:src="@drawable/symbol_send_fill_24"
+                android:tint="#FFFFFFFF" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
