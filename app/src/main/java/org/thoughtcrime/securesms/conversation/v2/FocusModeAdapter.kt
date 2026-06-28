@@ -41,13 +41,14 @@ class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapte
 
   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
     val item = getItem(position)
+    // Slight offset: outgoing shifts right, incoming shifts left — both still centered-ish
     if (item.isOutgoing) {
       holder.tv.text = "${item.text}  \u003C"
-      holder.tv.gravity = Gravity.END
+      holder.tv.setPadding(96, 11, 40, 11)
       holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
     } else {
       holder.tv.text = "\u003E  ${item.text}"
-      holder.tv.gravity = Gravity.START
+      holder.tv.setPadding(40, 11, 96, 11)
       holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
     }
     // Fade older messages upward

@@ -2568,7 +2568,14 @@ class ConversationFragment :
       hide(WindowInsetsCompat.Type.systemBars())
       systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
-    // Focus the overlay input field, not composeText
+    // Keyboard push: root bottom padding = IME height so content stays above keyboard
+    androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(focusModeOverlay!!) { view, insets ->
+      val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+      view.setPadding(0, 0, 0, imeHeight)
+      insets
+    }
+
+    // Focus the overlay input field
     focusModeOverlay?.findViewById<android.widget.EditText>(R.id.focus_input)?.let { fi ->
       fi.requestFocus()
       container.showSoftkey(fi)
