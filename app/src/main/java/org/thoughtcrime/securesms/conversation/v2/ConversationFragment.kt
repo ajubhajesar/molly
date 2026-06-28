@@ -1197,7 +1197,15 @@ class ConversationFragment :
 
       // Focus Mode back-press (higher priority — added after, so evaluated first)
       val focusModeBackCallback = object : androidx.activity.OnBackPressedCallback(false) {
-        override fun handleOnBackPressed() { exitFocusMode() }
+        override fun handleOnBackPressed() {
+          val imm = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+              as android.view.inputmethod.InputMethodManager
+          if (imm.isAcceptingText) {
+            imm.hideSoftInputFromWindow(composeText.windowToken, 0)
+          } else {
+            exitFocusMode()
+          }
+        }
       }
       requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, focusModeBackCallback)
       // Store reference so enterFocusMode/exitFocusMode can toggle isEnabled
