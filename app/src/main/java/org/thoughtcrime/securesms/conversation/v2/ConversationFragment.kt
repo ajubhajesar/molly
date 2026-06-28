@@ -2556,6 +2556,9 @@ class ConversationFragment :
         })
       }
 
+      // Input field — declared first so send button + IME listener can both use it
+      val focusInput = inflated.findViewById<android.widget.EditText>(R.id.focus_input)
+
       // Align toggle button
       inflated.findViewById<android.view.View>(R.id.focus_align_toggle).setOnClickListener {
         focusAdapter.isLeftRightMode = !focusAdapter.isLeftRightMode
@@ -2572,8 +2575,7 @@ class ConversationFragment :
         }
       }
 
-      // Input field: send on IME action, clear after send
-      val focusInput = inflated.findViewById<android.widget.EditText>(R.id.focus_input)
+      // IME action send
       focusInput.setOnEditorActionListener { _, actionId, _ ->
         if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
           val text = focusInput.text.toString().trim()
