@@ -1161,7 +1161,6 @@ class ConversationFragment :
           focusAdapter.submitList(newList) {
             val last = newList.size - 1
             if (last >= 0) {
-              focusAdapter.lastVisiblePosition = last
               focusRecycler?.scrollToPosition(last)
             }
           }
