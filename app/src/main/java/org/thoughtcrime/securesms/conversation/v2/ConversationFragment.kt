@@ -1156,7 +1156,11 @@ class ConversationFragment :
         }
 
         lastKnownMessages = it.filterIsInstance<org.thoughtcrime.securesms.conversation.v2.data.ConversationMessageElement>().map { el -> el.conversationMessage }
-        if (focusModeActive) focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(lastKnownMessages))
+        if (focusModeActive) {
+          focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(lastKnownMessages)) {
+            focusRecycler?.scrollToPosition(focusAdapter.itemCount - 1)
+          }
+        }
         adapter.submitList(it) {
           scrollToPositionDelegate.notifyListCommitted()
           conversationItemDecorations.currentItems = it
@@ -2527,7 +2531,7 @@ class ConversationFragment :
       focusModeOverlay = inflated
       focusRecycler = inflated.findViewById(R.id.focus_recycler)
       focusDot = inflated.findViewById(R.id.focus_presence_dot)
-      focusDraftText = inflated.findViewById(R.id.focus_draft_text)
+      focusDraftText = null // not used anymore
 
       focusRecycler!!.apply {
         layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext()).also {
@@ -2536,17 +2540,20 @@ class ConversationFragment :
         adapter = focusAdapter
       }
 
-      // Tap anywhere → bring keyboard back
-      inflated.setOnClickListener {
-        composeText.requestFocus()
-        container.showSoftkey(composeText)
-      }
-      focusRecycler!!.setOnClickListener {
-        composeText.requestFocus()
-        container.showSoftkey(composeText)
+      // Input field: send on IME action, clear after send
+      val focusInput = inflated.findViewById<android.widget.EditText>(R.id.focus_input)
+      focusInput.setOnEditorActionListener { _, actionId, _ ->
+        if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
+          val text = focusInput.text.toString().trim()
+          if (text.isNotBlank()) {
+            sendMessage(body = text)
+            focusInput.setText("")
+          }
+          true
+        } else false
       }
 
-      // Adjust bottom bar + recycler padding when keyboard shows/hides
+      // Keyboard insets → shift bottom bar + recycler padding
       androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(inflated) { _, insets ->
         val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
         val navHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
@@ -2555,19 +2562,11 @@ class ConversationFragment :
           focusRecycler!!.paddingLeft,
           focusRecycler!!.paddingTop,
           focusRecycler!!.paddingRight,
-          bottomPad + 64
+          bottomPad + 80
         )
-        inflated.findViewById<android.view.View>(R.id.focus_bottom_bar)
-          .setPadding(24, 0, 24, bottomPad + 20)
+        val bar = inflated.findViewById<android.view.View>(R.id.focus_bottom_bar)
+        bar.setPadding(bar.paddingLeft, 0, bar.paddingRight, bottomPad + 16)
         insets
-      }
-
-      composeText.setOnEditorActionListener { _, actionId, _ ->
-        if (focusModeActive && (actionId == EditorInfo.IME_ACTION_SEND || actionId == EditorInfo.IME_ACTION_DONE)) {
-          val text = composeText.textTrimmed.toString()
-          if (text.isNotBlank()) sendMessage(body = text)
-          true
-        } else false
       }
     }
 
@@ -2583,7 +2582,11 @@ class ConversationFragment :
       hide(WindowInsetsCompat.Type.systemBars())
       systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
-    container.showSoftkey(composeText)
+    // Focus the overlay input field, not composeText
+    focusModeOverlay?.findViewById<android.widget.EditText>(R.id.focus_input)?.let { fi ->
+      fi.requestFocus()
+      container.showSoftkey(fi)
+    }
   }
 
   private fun exitFocusMode() {
@@ -4977,12 +4980,7 @@ class ConversationFragment :
     override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
       handleSaveDraftOnTextChange(composeText.textTrimmed)
       handleTypingIndicatorOnTextChange(s.toString())
-      // Focus Mode draft
-      val draft = s.toString().trim()
-      focusDraftText?.apply {
-        if (draft.isEmpty()) { visibility = android.view.View.GONE }
-        else { text = draft; visibility = android.view.View.VISIBLE }
-      }
+
     }
 
     private fun handleSaveDraftOnTextChange(text: CharSequence) {

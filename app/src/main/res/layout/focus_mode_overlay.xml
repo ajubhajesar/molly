@@ -3,11 +3,9 @@
     android:id="@+id/focus_mode_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000"
-    android:clickable="true"
-    android:focusable="true">
+    android:background="#000000">
 
-    <!-- Message list - bottom padding is set dynamically via WindowInsets -->
+    <!-- Message list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/focus_recycler"
         android:layout_width="match_parent"
@@ -15,37 +13,44 @@
         android:clipToPadding="false"
         android:overScrollMode="never"
         android:paddingTop="48dp"
-        android:paddingBottom="64dp" />
+        android:paddingBottom="80dp" />
 
-    <!-- Presence dot + draft text anchored just above keyboard -->
+    <!-- Bottom bar: input + presence dot -->
     <LinearLayout
         android:id="@+id/focus_bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:paddingBottom="20dp"
-        android:paddingHorizontal="24dp">
+        android:paddingBottom="16dp"
+        android:paddingHorizontal="32dp">
 
-        <TextView
-            android:id="@+id/focus_draft_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="14dp"
-            android:alpha="0.5"
-            android:fontFamily="sans-serif-light"
-            android:gravity="center"
-            android:textColor="#FFFFFFFF"
-            android:textSize="16sp"
-            android:visibility="gone" />
-
+        <!-- Presence dot -->
         <View
             android:id="@+id/focus_presence_dot"
             android:layout_width="7dp"
             android:layout_height="7dp"
             android:layout_gravity="center"
+            android:layout_marginBottom="12dp"
             android:background="@drawable/focus_mode_dot"
             android:visibility="invisible" />
+
+        <!-- Minimal input field -->
+        <EditText
+            android:id="@+id/focus_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@null"
+            android:fontFamily="sans-serif-light"
+            android:gravity="center"
+            android:hint="Message"
+            android:imeOptions="actionSend"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="4"
+            android:textColor="#FFFFFFFF"
+            android:textColorHint="#44FFFFFF"
+            android:textCursorDrawable="@null"
+            android:textSize="16sp" />
 
     </LinearLayout>
 
