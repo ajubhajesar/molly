@@ -42,7 +42,7 @@ class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapte
   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
     val item = getItem(position)
     // «outgoing» or  incoming <
-    holder.tv.text = if (item.isOutgoing) "\u00AB${item.text}\u00BB" else "${item.text} \u003C"
+    holder.tv.text = if (item.isOutgoing) "${item.text} \u003C" else "\u003E  ${item.text}"
     // Opacity: newest (bottom) = full, fades upward
     val fromBottom = itemCount - 1 - position
     holder.tv.alpha = when {

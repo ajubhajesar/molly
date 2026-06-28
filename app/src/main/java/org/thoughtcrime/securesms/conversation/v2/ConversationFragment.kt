@@ -2536,8 +2536,31 @@ class ConversationFragment :
         adapter = focusAdapter
       }
 
-      inflated.findViewById<android.view.View>(R.id.focus_exit_button)
-        .setOnClickListener { exitFocusMode() }
+      // Tap anywhere → bring keyboard back
+      inflated.setOnClickListener {
+        composeText.requestFocus()
+        container.showSoftkey(composeText)
+      }
+      focusRecycler!!.setOnClickListener {
+        composeText.requestFocus()
+        container.showSoftkey(composeText)
+      }
+
+      // Adjust bottom bar + recycler padding when keyboard shows/hides
+      androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(inflated) { _, insets ->
+        val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        val navHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+        val bottomPad = if (imeHeight > 0) imeHeight else navHeight
+        focusRecycler!!.setPadding(
+          focusRecycler!!.paddingLeft,
+          focusRecycler!!.paddingTop,
+          focusRecycler!!.paddingRight,
+          bottomPad + 64
+        )
+        inflated.findViewById<android.view.View>(R.id.focus_bottom_bar)
+          .setPadding(24, 0, 24, bottomPad + 20)
+        insets
+      }
 
       composeText.setOnEditorActionListener { _, actionId, _ ->
         if (focusModeActive && (actionId == EditorInfo.IME_ACTION_SEND || actionId == EditorInfo.IME_ACTION_DONE)) {
