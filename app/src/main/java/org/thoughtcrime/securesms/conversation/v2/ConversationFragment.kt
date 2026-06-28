@@ -85,9 +85,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.transition.platform.MaterialContainerTransformSharedElementCallback
 import android.animation.ObjectAnimator
 import android.view.ViewStub
-import android.view.inputmethod.EditorInfo
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Completable
@@ -1157,8 +1155,8 @@ class ConversationFragment :
           SignalLocalMetrics.ConversationOpen.onDataPostedToMain()
         }
 
-        lastKnownMessages = it
-        if (focusModeActive) focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(it))
+        lastKnownMessages = it.filterIsInstance<org.thoughtcrime.securesms.conversation.v2.data.ConversationMessageElement>().map { el -> el.conversationMessage }
+        if (focusModeActive) focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(lastKnownMessages))
         adapter.submitList(it) {
           scrollToPositionDelegate.notifyListCommitted()
           conversationItemDecorations.currentItems = it
