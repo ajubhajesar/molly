@@ -2533,11 +2533,28 @@ class ConversationFragment :
       focusDot = inflated.findViewById(R.id.focus_presence_dot)
       focusDraftText = null // not used anymore
 
+      val focusLM = androidx.recyclerview.widget.LinearLayoutManager(requireContext()).also {
+        it.stackFromEnd = true
+      }
       focusRecycler!!.apply {
-        layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext()).also {
-          it.stackFromEnd = true
-        }
+        layoutManager = focusLM
         adapter = focusAdapter
+        // Scroll listener: update lastVisiblePosition for opacity calculation
+        addOnScrollListener(object : RecyclerView.OnScrollListener() {
+          override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+            focusAdapter.lastVisiblePosition = focusLM.findLastVisibleItemPosition()
+            focusAdapter.notifyItemRangeChanged(
+              focusLM.findFirstVisibleItemPosition(),
+              focusLM.findLastVisibleItemPosition() - focusLM.findFirstVisibleItemPosition() + 1
+            )
+          }
+        })
+      }
+
+      // Align toggle button
+      inflated.findViewById<android.view.View>(R.id.focus_align_toggle).setOnClickListener {
+        focusAdapter.isLeftRightMode = !focusAdapter.isLeftRightMode
+        focusAdapter.notifyDataSetChanged()
       }
 
       // Input field: send on IME action, clear after send
