@@ -1,6 +1,7 @@
 package org.thoughtcrime.securesms.conversation.v2
 
 import android.graphics.Typeface
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -12,20 +13,19 @@ import org.thoughtcrime.securesms.conversation.ConversationMessage
 /**
  * AJ fork: Focus Mode adapter.
  *
- * Center mode (default):
- *   outgoing: text slightly LEFT of center  →  "text <"  paddingEnd=96
- *   incoming: text slightly RIGHT of center →  "> text"  paddingStart=96
+ * All text is CENTER aligned within its view.
+ * Position is shifted slightly right (outgoing) or slightly left (incoming)
+ * via asymmetric margins on the item's LayoutParams.
  *
- * LR mode (toggle):
- *   outgoing: right-aligned   incoming: left-aligned
+ * Dim effect is handled by a static gradient overlay in the layout —
+ * no per-item alpha needed.
  *
- * Opacity is scroll-driven via lastVisiblePosition.
+ * Toggle: isLeftRightMode = true → same shift but larger (more L/R feel).
  */
 class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapter.ViewHolder>(DIFF) {
 
   data class FocusItem(val text: String, val isOutgoing: Boolean)
 
-  var lastVisiblePosition: Int = 0
   var isLeftRightMode: Boolean = false
 
   class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -40,51 +40,46 @@ class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapte
       )
       textSize = 16f
       setTextColor(0xFFEEEEEE.toInt())
+      alpha = 1f
       typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
       letterSpacing = 0.02f
       setLineSpacing(0f, 1.4f)
+      textAlignment = View.TEXT_ALIGNMENT_CENTER
     }
     return ViewHolder(tv)
   }
 
   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
     val item = getItem(position)
+    val ctx = holder.tv.context
 
+    // Convert dp → px for margins
+    fun dp(value: Int) = TypedValue.applyDimension(
+      TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), ctx.resources.displayMetrics
+    ).toInt()
+
+    val params = holder.tv.layoutParams as RecyclerView.LayoutParams
+
+    holder.tv.text = if (item.isOutgoing) "${item.text}  \u003C" else "\u003E  ${item.text}"
+    holder.tv.textAlignment = View.TEXT_ALIGNMENT_CENTER
+    holder.tv.setPadding(dp(16), dp(10), dp(16), dp(10))
+
+    // Shift position via margins: outgoing → right of center, incoming → left of center
     if (isLeftRightMode) {
-      // Full left/right
       if (item.isOutgoing) {
-        holder.tv.text = "${item.text}  \u003C"
-        holder.tv.setPadding(40, 12, 40, 12)
-        holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
+        params.marginStart = dp(80); params.marginEnd = dp(8)
       } else {
-        holder.tv.text = "\u003E  ${item.text}"
-        holder.tv.setPadding(40, 12, 40, 12)
-        holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        params.marginStart = dp(8); params.marginEnd = dp(80)
       }
     } else {
-      // Center mode: outgoing nudged LEFT, incoming nudged RIGHT
+      // subtle offset
       if (item.isOutgoing) {
-        holder.tv.text = "${item.text}  \u003C"
-        // more padding on left pushes text right of center
-        holder.tv.setPadding(112, 12, 48, 12)
-        holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
+        params.marginStart = dp(48); params.marginEnd = dp(8)
       } else {
-        holder.tv.text = "\u003E  ${item.text}"
-        // more padding on right pushes text left of center
-        holder.tv.setPadding(48, 12, 112, 12)
-        holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        params.marginStart = dp(8); params.marginEnd = dp(48)
       }
     }
-
-    // Scroll-driven opacity
-    val distFromBottom = lastVisiblePosition - position
-    holder.tv.alpha = when {
-      distFromBottom <= 1  -> 1.0f
-      distFromBottom <= 4  -> 0.80f
-      distFromBottom <= 8  -> 0.50f
-      distFromBottom <= 14 -> 0.25f
-      else                 -> 0.08f
-    }
+    holder.tv.layoutParams = params
   }
 
   companion object {

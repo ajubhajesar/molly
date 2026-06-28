@@ -2544,16 +2544,7 @@ class ConversationFragment :
       focusRecycler!!.apply {
         layoutManager = focusLM
         adapter = focusAdapter
-        addOnScrollListener(object : RecyclerView.OnScrollListener() {
-          override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
-            val last = focusLM.findLastVisibleItemPosition()
-            if (last != RecyclerView.NO_POSITION) {
-              focusAdapter.lastVisiblePosition = last
-              val first = focusLM.findFirstVisibleItemPosition()
-              focusAdapter.notifyItemRangeChanged(first, last - first + 1)
-            }
-          }
-        })
+
       }
 
       // Input field — declared first so send button + IME listener can both use it

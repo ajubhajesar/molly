@@ -28,17 +28,31 @@
 
     </FrameLayout>
 
-    <!-- Message list -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/focus_recycler"
+    <!-- RecyclerView + gradient fade overlay on top -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:overScrollMode="never"
-        android:paddingBottom="8dp" />
+        android:layout_weight="1">
 
-    <!-- Bottom: presence dot + input row + send button -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/focus_recycler"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingBottom="8dp" />
+
+        <!-- Gradient overlay: black at top fades to transparent at bottom -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_gravity="top"
+            android:background="@drawable/focus_mode_fade"
+            android:importantForAccessibility="no" />
+
+    </FrameLayout>
+
+    <!-- Bottom: presence dot + input + send -->
     <LinearLayout
         android:id="@+id/focus_bottom_bar"
         android:layout_width="match_parent"
@@ -56,7 +70,6 @@
             android:background="@drawable/focus_mode_dot"
             android:visibility="invisible" />
 
-        <!-- Input + send on same row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
