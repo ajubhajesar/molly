@@ -2553,21 +2553,7 @@ class ConversationFragment :
         } else false
       }
 
-      // Keyboard insets → shift bottom bar + recycler padding
-      androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(inflated) { _, insets ->
-        val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-        val navHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-        val bottomPad = if (imeHeight > 0) imeHeight else navHeight
-        focusRecycler!!.setPadding(
-          focusRecycler!!.paddingLeft,
-          focusRecycler!!.paddingTop,
-          focusRecycler!!.paddingRight,
-          bottomPad + 80
-        )
-        val bar = inflated.findViewById<android.view.View>(R.id.focus_bottom_bar)
-        bar.setPadding(bar.paddingLeft, 0, bar.paddingRight, bottomPad + 16)
-        insets
-      }
+
     }
 
     focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(lastKnownMessages))

@@ -1,41 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/focus_mode_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="#000000"
+    android:orientation="vertical">
 
     <!-- Message list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/focus_recycler"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
         android:overScrollMode="never"
         android:paddingTop="48dp"
-        android:paddingBottom="80dp" />
+        android:paddingBottom="16dp" />
 
-    <!-- Bottom bar: input + presence dot -->
+    <!-- Bottom bar: presence dot + input -->
     <LinearLayout
         android:id="@+id/focus_bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:paddingBottom="16dp"
-        android:paddingHorizontal="32dp">
+        android:paddingHorizontal="32dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="16dp">
 
-        <!-- Presence dot -->
         <View
             android:id="@+id/focus_presence_dot"
             android:layout_width="7dp"
             android:layout_height="7dp"
             android:layout_gravity="center"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="10dp"
             android:background="@drawable/focus_mode_dot"
             android:visibility="invisible" />
 
-        <!-- Minimal input field -->
         <EditText
             android:id="@+id/focus_input"
             android:layout_width="match_parent"
@@ -44,9 +44,8 @@
             android:fontFamily="sans-serif-light"
             android:gravity="center"
             android:hint="Message"
-            android:imeOptions="actionSend"
-            android:inputType="textMultiLine|textCapSentences"
-            android:maxLines="4"
+            android:imeOptions="actionSend|flagNoEnterAction"
+            android:inputType="text"
             android:textColor="#FFFFFFFF"
             android:textColorHint="#44FFFFFF"
             android:textCursorDrawable="@null"
@@ -54,4 +53,4 @@
 
     </LinearLayout>
 
-</FrameLayout>
+</LinearLayout>
