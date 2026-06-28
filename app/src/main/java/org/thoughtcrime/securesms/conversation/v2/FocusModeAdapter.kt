@@ -65,13 +65,13 @@ class FocusModeAdapter : ListAdapter<FocusModeAdapter.FocusItem, FocusModeAdapte
       // Center mode: outgoing nudged LEFT, incoming nudged RIGHT
       if (item.isOutgoing) {
         holder.tv.text = "${item.text}  \u003C"
-        // more padding on right pushes text left of center
-        holder.tv.setPadding(48, 12, 112, 12)
+        // more padding on left pushes text right of center
+        holder.tv.setPadding(112, 12, 48, 12)
         holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
       } else {
         holder.tv.text = "\u003E  ${item.text}"
-        // more padding on left pushes text right of center
-        holder.tv.setPadding(112, 12, 48, 12)
+        // more padding on right pushes text left of center
+        holder.tv.setPadding(48, 12, 112, 12)
         holder.tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
       }
     }

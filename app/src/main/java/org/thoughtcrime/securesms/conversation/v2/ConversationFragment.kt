@@ -2563,7 +2563,6 @@ class ConversationFragment :
       }
 
       // Send button
-      val focusInput = inflated.findViewById<android.widget.EditText>(R.id.focus_input)
       inflated.findViewById<android.view.View>(R.id.focus_send_btn).setOnClickListener {
         val text = focusInput.text.toString().trim()
         if (text.isNotBlank()) {
