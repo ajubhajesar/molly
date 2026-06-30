@@ -51,6 +51,7 @@ public class TextSecurePreferences {
   public  static final String THEME_PREF                       = "pref_theme";
   public  static final String DYNAMIC_COLORS_ENABLED           = "pref_dynamic_colors";
   public  static final String AMOLED_ENABLED                   = "pref_amoled_dark";
+  public  static final String PRESENCE_LINES_ENABLED            = "pref_presence_lines_style";
   public  static final String LANGUAGE_PREF                    = "pref_language";
 
   private static final String LAST_VERSION_CODE_PREF           = "last_version_code";
@@ -760,6 +761,15 @@ public class TextSecurePreferences {
 
   public static void setAmoledEnabled(Context context, boolean enabled) {
     setBooleanPreference(context, AMOLED_ENABLED, enabled);
+  }
+
+  /** AJ fork: true = lines presence indicator, false (default) = cat presence indicator. */
+  public static boolean isPresenceLinesEnabled(Context context) {
+    return getBooleanPreference(context, PRESENCE_LINES_ENABLED, false);
+  }
+
+  public static void setPresenceLinesEnabled(Context context, boolean enabled) {
+    setBooleanPreference(context, PRESENCE_LINES_ENABLED, enabled);
   }
 
   public static String getLanguage(Context context) {

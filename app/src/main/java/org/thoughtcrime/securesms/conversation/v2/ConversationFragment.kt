@@ -83,10 +83,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.BaseTransientBottomBar.Duration
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.transition.platform.MaterialContainerTransformSharedElementCallback
-import android.animation.ObjectAnimator
-import android.view.ViewStub
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Single
@@ -599,17 +595,6 @@ class ConversationFragment :
   private val inputPanel: InputPanel
     get() = binding.conversationInputPanel.root
 
-  // ── Focus Mode ────────────────────────────────────────────────────────────
-  private var focusModeOverlay: android.view.View? = null
-  private var focusRecycler: androidx.recyclerview.widget.RecyclerView? = null
-  private var focusDot: android.view.View? = null
-  private var focusDraftText: android.widget.TextView? = null
-  private val focusAdapter = FocusModeAdapter()
-  private var lastKnownMessages: List<org.thoughtcrime.securesms.conversation.ConversationMessage> = emptyList()
-  private var dotPulseAnim: ObjectAnimator? = null
-  private var focusModeActive = false
-  // ──────────────────────────────────────────────────────────────────────────
-
   private val composeText: ComposeText
     get() = binding.conversationInputPanel.embeddedTextEditor
 
@@ -672,8 +657,20 @@ class ConversationFragment :
 
     disposables.bindTo(viewLifecycleOwner)
 
-    // Focus Mode entry button
-    binding.conversationFocusModeBtn.setOnClickListener { enterFocusMode() }
+    // AJ fork: long-press the presence indicator to switch between cat / lines style.
+    // Only forces a live preview if the indicator was already visible (i.e. someone is
+    // genuinely present/typing right now) — never fakes presence when it's actually hidden.
+    binding.conversationPresenceIndicator.setOnLongClickListener {
+      val wasVisible = binding.conversationPresenceIndicator.visibility == View.VISIBLE
+      val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING || linesUiState == LinesUiState.LOOPING
+      val current = org.thoughtcrime.securesms.util.TextSecurePreferences.isPresenceLinesEnabled(requireContext())
+      org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceLinesEnabled(requireContext(), !current)
+      Toast.makeText(requireContext(), if (!current) "Presence: lines style" else "Presence: cat style", Toast.LENGTH_SHORT).show()
+      if (wasVisible) {
+        updatePresenceIndicator(wasTyping, true)
+      }
+      true
+    }
 
     if (requireActivity() is ConversationActivity) {
       FullscreenHelper(requireActivity()).showSystemUI()
@@ -1155,16 +1152,6 @@ class ConversationFragment :
           SignalLocalMetrics.ConversationOpen.onDataPostedToMain()
         }
 
-        lastKnownMessages = it.filterIsInstance<org.thoughtcrime.securesms.conversation.v2.data.ConversationMessageElement>().map { el -> el.conversationMessage }
-        if (focusModeActive) {
-          val newList = FocusModeAdapter.fromConversationMessages(lastKnownMessages)
-          focusAdapter.submitList(newList) {
-            val last = newList.size - 1
-            if (last >= 0) {
-              focusRecycler?.scrollToPosition(last)
-            }
-          }
-        }
         adapter.submitList(it) {
           scrollToPositionDelegate.notifyListCommitted()
           conversationItemDecorations.currentItems = it
@@ -1202,22 +1189,6 @@ class ConversationFragment :
     if (requireActivity() is ConversationActivity) {
       val backPressedCallback = BackPressedCallback()
       requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
-
-      // Focus Mode back-press (higher priority — added after, so evaluated first)
-      val focusModeBackCallback = object : androidx.activity.OnBackPressedCallback(false) {
-        override fun handleOnBackPressed() {
-          val imm = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-              as android.view.inputmethod.InputMethodManager
-          if (imm.isAcceptingText) {
-            imm.hideSoftInputFromWindow(composeText.windowToken, 0)
-          } else {
-            exitFocusMode()
-          }
-        }
-      }
-      requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, focusModeBackCallback)
-      // Store reference so enterFocusMode/exitFocusMode can toggle isEnabled
-      binding.root.tag = focusModeBackCallback
 
       lifecycleScope.launch {
         repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -1534,8 +1505,7 @@ class ConversationFragment :
       val isTyping = it.typists.isNotEmpty()
       val isPresent = it.present.isNotEmpty()
 
-      updatePresenceCat(isTyping, isPresent)
-      if (focusModeActive) updateFocusDot(isTyping, isPresent)
+      updatePresenceIndicator(isTyping, isPresent)
     }
   }
 
@@ -1551,6 +1521,101 @@ class ConversationFragment :
    */
   private enum class CatUiState { HIDDEN, SLEEPING, WAKING, AWAKE, GOING_TO_SLEEP }
   private var catUiState: CatUiState = CatUiState.HIDDEN
+
+  // AJ fork: lines-style presence indicator (alternative to cat, toggled via long-press)
+  private enum class LinesUiState { HIDDEN, PAUSED, LOOPING }
+  private var linesUiState: LinesUiState = LinesUiState.HIDDEN
+  private var presenceIndicatorLoadedRaw: Int = -1
+
+  /**
+   * AJ fork: dispatches to whichever presence indicator style is active.
+   * Long-press on the indicator (wired in onViewCreated) flips the preference
+   * and instantly re-renders with the other style.
+   */
+  private fun updatePresenceIndicator(isTyping: Boolean, isPresent: Boolean) {
+    val useLines = org.thoughtcrime.securesms.util.TextSecurePreferences.isPresenceLinesEnabled(requireContext())
+    val wantRaw = if (useLines) R.raw.presence_lines_indicator else R.raw.presence_cat_indicator
+    val cat = binding.conversationPresenceIndicator
+    if (presenceIndicatorLoadedRaw != wantRaw) {
+      // Style changed — stop whatever was running, swap the Lottie source, reset both state machines.
+      cat.cancelAnimation()
+      cat.setAnimation(wantRaw)
+      presenceIndicatorLoadedRaw = wantRaw
+      catUiState = CatUiState.HIDDEN
+      linesUiState = LinesUiState.HIDDEN
+      cat.visibility = View.GONE
+      cat.alpha = 1f
+      cat.translationY = 0f
+    }
+    if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
+  }
+
+  /**
+   * Lines indicator: a single continuous flowing-line loop.
+   * TYPING        -> loop continuously
+   * PRESENT only  -> pause (freeze on current frame, NOT reset to 0) — "lines stopped" look
+   * neither       -> fade out / slide down, same as cat's hide animation
+   */
+  private fun updatePresenceLines(isTyping: Boolean, isPresent: Boolean) {
+    val cat = binding.conversationPresenceIndicator
+    val shouldShow = isTyping || isPresent
+
+    if (!shouldShow) {
+      if (linesUiState == LinesUiState.HIDDEN) return
+      linesUiState = LinesUiState.HIDDEN
+      cat.animate().cancel()
+      cat.pauseAnimation() // freeze in place, do NOT reset frame to 0
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        0
+      )
+      cat.animate()
+        .translationY(cat.height.toFloat())
+        .alpha(0f)
+        .setDuration(220)
+        .withEndAction {
+          if (linesUiState == LinesUiState.HIDDEN) {
+            cat.cancelAnimation()
+            cat.visibility = View.GONE
+            cat.translationY = 0f
+            cat.alpha = 1f
+          }
+        }
+        .start()
+      return
+    }
+
+    val wasHidden = linesUiState == LinesUiState.HIDDEN
+    if (wasHidden) {
+      cat.animate().cancel()
+      cat.translationY = 0f
+      cat.alpha = 1f
+      cat.visibility = View.VISIBLE
+      val catPad = resources.getDimensionPixelSize(R.dimen.presence_cat_recycler_pad)
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        catPad
+      )
+    }
+
+    if (isTyping) {
+      if (linesUiState == LinesUiState.LOOPING) return // already looping, duplicate emission
+      linesUiState = LinesUiState.LOOPING
+      cat.speed = 1f
+      cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
+      cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+      if (wasHidden) cat.frame = 0
+      cat.playAnimation()
+    } else {
+      if (linesUiState == LinesUiState.PAUSED && !wasHidden) return // already paused, duplicate emission
+      linesUiState = LinesUiState.PAUSED
+      cat.pauseAnimation() // freeze wherever it currently is — "lines stopped"
+    }
+  }
 
   private fun updatePresenceCat(isTyping: Boolean, isPresent: Boolean) {
     val cat = binding.conversationPresenceIndicator
@@ -2524,123 +2589,6 @@ class ConversationFragment :
 
     viewModel.updateStickerLastUsedTime(stickerRecord, System.currentTimeMillis().milliseconds)
   }
-
-  // ── Focus Mode ────────────────────────────────────────────────────────────
-
-  private fun enterFocusMode() {
-    focusModeActive = true
-    if (focusModeOverlay == null) {
-      val stub = binding.root.findViewById<ViewStub>(R.id.focus_mode_stub)
-      val inflated = stub.inflate()
-      focusModeOverlay = inflated
-      focusRecycler = inflated.findViewById(R.id.focus_recycler)
-      focusDot = inflated.findViewById(R.id.focus_presence_dot)
-      focusDraftText = null // not used anymore
-
-      val focusLM = androidx.recyclerview.widget.LinearLayoutManager(requireContext()).also {
-        it.stackFromEnd = true
-      }
-      focusRecycler!!.apply {
-        layoutManager = focusLM
-        adapter = focusAdapter
-
-      }
-
-      // Input field — declared first so send button + IME listener can both use it
-      val focusInput = inflated.findViewById<android.widget.EditText>(R.id.focus_input)
-
-      // Align toggle button
-      inflated.findViewById<android.view.View>(R.id.focus_align_toggle).setOnClickListener {
-        focusAdapter.isLeftRightMode = !focusAdapter.isLeftRightMode
-        focusAdapter.notifyDataSetChanged()
-      }
-
-      // Send button
-      inflated.findViewById<android.view.View>(R.id.focus_send_btn).setOnClickListener {
-        val text = focusInput.text.toString().trim()
-        if (text.isNotBlank()) {
-          sendMessage(body = text)
-          focusInput.setText("")
-          focusRecycler?.scrollToPosition(focusAdapter.itemCount - 1)
-        }
-      }
-
-      // IME action send
-      focusInput.setOnEditorActionListener { _, actionId, _ ->
-        if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
-          val text = focusInput.text.toString().trim()
-          if (text.isNotBlank()) {
-            sendMessage(body = text)
-            focusInput.setText("")
-          }
-          true
-        } else false
-      }
-
-
-    }
-
-    focusAdapter.submitList(FocusModeAdapter.fromConversationMessages(lastKnownMessages))
-    focusModeOverlay!!.alpha = 0f
-    focusModeOverlay!!.visibility = android.view.View.VISIBLE
-    focusModeOverlay!!.animate().alpha(1f).setDuration(280).start()
-    (binding.root.tag as? androidx.activity.OnBackPressedCallback)?.isEnabled = true
-
-    val window = requireActivity().window
-    WindowCompat.setDecorFitsSystemWindows(window, false)
-    WindowInsetsControllerCompat(window, window.decorView).apply {
-      hide(WindowInsetsCompat.Type.systemBars())
-      systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    }
-    // Keyboard push: root bottom padding = IME height so content stays above keyboard
-    androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(focusModeOverlay!!) { view, insets ->
-      val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-      view.setPadding(0, 0, 0, imeHeight)
-      insets
-    }
-
-    // Focus the overlay input field
-    focusModeOverlay?.findViewById<android.widget.EditText>(R.id.focus_input)?.let { fi ->
-      fi.requestFocus()
-      container.showSoftkey(fi)
-    }
-  }
-
-  private fun exitFocusMode() {
-    focusModeActive = false
-    stopDotPulse()
-    focusDraftText?.visibility = android.view.View.GONE
-    focusModeOverlay?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
-      focusModeOverlay?.visibility = android.view.View.GONE
-    }?.start()
-    (binding.root.tag as? androidx.activity.OnBackPressedCallback)?.isEnabled = false
-    val window = requireActivity().window
-    WindowCompat.setDecorFitsSystemWindows(window, true)
-    WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
-  }
-
-  private fun updateFocusDot(isTyping: Boolean, isPresent: Boolean) {
-    val dot = focusDot ?: return
-    when {
-      isTyping  -> { dot.visibility = android.view.View.VISIBLE; startDotPulse() }
-      isPresent -> { dot.visibility = android.view.View.VISIBLE; stopDotPulse(); dot.alpha = 1f }
-      else      -> { dot.visibility = android.view.View.INVISIBLE; stopDotPulse() }
-    }
-  }
-
-  private fun startDotPulse() {
-    if (dotPulseAnim?.isRunning == true) return
-    dotPulseAnim = ObjectAnimator.ofFloat(focusDot, "alpha", 0.2f, 1f).apply {
-      duration = 800
-      repeatMode = android.animation.ValueAnimator.REVERSE
-      repeatCount = android.animation.ValueAnimator.INFINITE
-      start()
-    }
-  }
-
-  private fun stopDotPulse() { dotPulseAnim?.cancel(); dotPulseAnim = null }
-
-  // ──────────────────────────────────────────────────────────────────────────
 
   private fun sendMessageWithoutComposeInput(
     slide: Slide? = null,
@@ -4997,7 +4945,6 @@ class ConversationFragment :
     override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
       handleSaveDraftOnTextChange(composeText.textTrimmed)
       handleTypingIndicatorOnTextChange(s.toString())
-
     }
 
     private fun handleSaveDraftOnTextChange(text: CharSequence) {
