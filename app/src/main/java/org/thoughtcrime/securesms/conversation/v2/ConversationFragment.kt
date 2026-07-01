@@ -1541,19 +1541,22 @@ class ConversationFragment :
     if (presenceIndicatorLoadedRaw != wantRaw) {
       // Style changed — stop whatever was running, swap the Lottie source, reset both state machines.
       cat.cancelAnimation()
-      cat.clearComposition()
-      cat.setAnimation(wantRaw)
+      cat.setAnimation(wantRaw)  // implicitly resets composition
       presenceIndicatorLoadedRaw = wantRaw
       catUiState = CatUiState.HIDDEN
       linesUiState = LinesUiState.HIDDEN
       cat.visibility = View.GONE
       cat.alpha = 1f
       cat.translationY = 0f
-      // Force white strokes for lines style; remove override for cat (its JSON handles its own colors)
+      // Force white strokes for lines style via explicit LottieValueCallback cast (avoids lambda ambiguity)
       if (useLines) {
-        cat.addValueCallback(KeyPath("**"), LottieProperty.STROKE_COLOR) { android.graphics.Color.WHITE }
+        cat.addValueCallback(
+          KeyPath("**"),
+          LottieProperty.STROKE_COLOR,
+          com.airbnb.lottie.value.LottieValueCallback<Int>(android.graphics.Color.WHITE)
+        )
       } else {
-        cat.addValueCallback(KeyPath("**"), LottieProperty.STROKE_COLOR, null)
+        cat.addValueCallback<Int>(KeyPath("**"), LottieProperty.STROKE_COLOR, null)
       }
     }
     if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
