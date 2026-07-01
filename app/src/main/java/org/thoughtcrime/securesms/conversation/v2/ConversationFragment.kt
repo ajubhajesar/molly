@@ -83,6 +83,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.BaseTransientBottomBar.Duration
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.transition.platform.MaterialContainerTransformSharedElementCallback
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.model.KeyPath
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Single
@@ -1539,6 +1541,7 @@ class ConversationFragment :
     if (presenceIndicatorLoadedRaw != wantRaw) {
       // Style changed — stop whatever was running, swap the Lottie source, reset both state machines.
       cat.cancelAnimation()
+      cat.clearComposition()
       cat.setAnimation(wantRaw)
       presenceIndicatorLoadedRaw = wantRaw
       catUiState = CatUiState.HIDDEN
@@ -1546,6 +1549,12 @@ class ConversationFragment :
       cat.visibility = View.GONE
       cat.alpha = 1f
       cat.translationY = 0f
+      // Force white strokes for lines style; remove override for cat (its JSON handles its own colors)
+      if (useLines) {
+        cat.addValueCallback(KeyPath("**"), LottieProperty.STROKE_COLOR) { android.graphics.Color.WHITE }
+      } else {
+        cat.addValueCallback(KeyPath("**"), LottieProperty.STROKE_COLOR, null)
+      }
     }
     if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
   }

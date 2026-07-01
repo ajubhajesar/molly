@@ -119,17 +119,6 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1" />
 
-            <ImageView
-                android:id="@+id/conversation_focus_mode_btn"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="4dp"
-                android:alpha="0.7"
-                android:contentDescription="@string/focus_mode_enter"
-                android:padding="8dp"
-                android:src="@drawable/ic_moon_24"
-                android:tint="@color/core_white" />
-
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/conversation_group_call_join"
                 android:layout_width="wrap_content"
@@ -279,13 +268,14 @@
 
     <com.airbnb.lottie.LottieAnimationView
         android:id="@+id/conversation_presence_indicator"
-        android:layout_width="67dp"
-        android:layout_height="36dp"
-        android:layout_marginStart="12dp"
-        android:layout_marginBottom="4dp"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginBottom="2dp"
         android:visibility="gone"
         app:lottie_rawRes="@raw/presence_cat_indicator"
+        app:lottie_scaleType="fitXY"
         app:layout_constraintBottom_toTopOf="@+id/conversation_input_panel"
+        app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         tools:visibility="visible" />
 
@@ -408,13 +398,5 @@
         app:layout_constraintEnd_toEndOf="@+id/parent_end_guideline"
         app:layout_constraintStart_toStartOf="@+id/parent_start_guideline"
         app:layout_constraintTop_toTopOf="@+id/status_bar_guideline" />
-
-    <!-- Focus Mode full-screen overlay -->
-    <ViewStub
-        android:id="@+id/focus_mode_stub"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:inflatedId="@+id/focus_mode_overlay"
-        android:layout="@layout/focus_mode_overlay" />
 
 </org.thoughtcrime.securesms.components.InputAwareConstraintLayout>
