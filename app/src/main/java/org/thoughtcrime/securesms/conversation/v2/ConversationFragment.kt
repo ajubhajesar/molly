@@ -1541,27 +1541,44 @@ class ConversationFragment :
     if (presenceIndicatorLoadedRaw != wantRaw) {
       // Style changed — stop whatever was running, swap the Lottie source, reset both state machines.
       cat.cancelAnimation()
-      cat.setAnimation(wantRaw)  // implicitly resets composition
+      cat.setAnimation(wantRaw)
       presenceIndicatorLoadedRaw = wantRaw
       catUiState = CatUiState.HIDDEN
       linesUiState = LinesUiState.HIDDEN
       cat.visibility = View.GONE
       cat.alpha = 1f
       cat.translationY = 0f
-      // Force white strokes for lines style via explicit LottieValueCallback cast (avoids lambda ambiguity)
+
+      val params = cat.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+      val dm = resources.displayMetrics
+      fun dp(v: Int) = (v * dm.density).toInt()
+
       if (useLines) {
+        // Lines: stretch full screen width, centerCrop preserves waveform shape without distortion
+        params.width = 0 // 0 = match constraints
+        params.height = dp(36)
+        params.marginStart = 0
+        params.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+        cat.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
         cat.addValueCallback(
           KeyPath("**"),
           LottieProperty.STROKE_COLOR,
           com.airbnb.lottie.value.LottieValueCallback<Int>(android.graphics.Color.WHITE)
         )
       } else {
+        // Cat: restore original 67×36dp, start-only constrained, 12dp margin
+        params.width = dp(67)
+        params.height = dp(36)
+        params.marginStart = dp(12)
+        params.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+        cat.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
         cat.addValueCallback(
           KeyPath("**"),
           LottieProperty.STROKE_COLOR,
           null as com.airbnb.lottie.value.LottieValueCallback<Int>?
         )
       }
+      cat.layoutParams = params
     }
     if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
   }
