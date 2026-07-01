@@ -1556,7 +1556,11 @@ class ConversationFragment :
           com.airbnb.lottie.value.LottieValueCallback<Int>(android.graphics.Color.WHITE)
         )
       } else {
-        cat.addValueCallback<Int>(KeyPath("**"), LottieProperty.STROKE_COLOR, null)
+        cat.addValueCallback(
+          KeyPath("**"),
+          LottieProperty.STROKE_COLOR,
+          null as com.airbnb.lottie.value.LottieValueCallback<Int>?
+        )
       }
     }
     if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
