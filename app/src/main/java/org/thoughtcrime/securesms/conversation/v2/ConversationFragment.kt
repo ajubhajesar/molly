@@ -659,16 +659,21 @@ class ConversationFragment :
 
     disposables.bindTo(viewLifecycleOwner)
 
-    // AJ fork: long-press the presence indicator to switch between cat / lines style.
+    // AJ fork: long-press the presence indicator to cycle cat -> lines -> bubble -> cat.
     // Only forces a live preview if the indicator was already visible (i.e. someone is
     // genuinely present/typing right now) — never fakes presence when it's actually hidden.
     binding.conversationPresenceIndicator.setOnLongClickListener {
-      val wasVisible = binding.conversationPresenceIndicator.visibility == View.VISIBLE
       val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING || linesUiState == LinesUiState.LOOPING
-      val current = org.thoughtcrime.securesms.util.TextSecurePreferences.isPresenceLinesEnabled(requireContext())
-      org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceLinesEnabled(requireContext(), !current)
-      Toast.makeText(requireContext(), if (!current) "Presence: lines style" else "Presence: cat style", Toast.LENGTH_SHORT).show()
-      if (wasVisible) {
+      val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
+      val next = (current + 1) % 3
+      org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), next)
+      val label = when (next) {
+        1 -> "Presence: lines style"
+        2 -> "Presence: bubble style"
+        else -> "Presence: cat style"
+      }
+      Toast.makeText(requireContext(), label, Toast.LENGTH_SHORT).show()
+      if (lastPresenceActive) {
         updatePresenceIndicator(wasTyping, true)
       }
       true
@@ -1507,7 +1512,7 @@ class ConversationFragment :
       val isTyping = it.typists.isNotEmpty()
       val isPresent = it.present.isNotEmpty()
 
-      updatePresenceIndicator(isTyping, isPresent)
+      updatePresenceIndicator(isTyping, isPresent, it.typists)
     }
   }
 
@@ -1528,14 +1533,61 @@ class ConversationFragment :
   private enum class LinesUiState { HIDDEN, PAUSED, LOOPING }
   private var linesUiState: LinesUiState = LinesUiState.HIDDEN
   private var presenceIndicatorLoadedRaw: Int = -1
+  // AJ fork: last isTyping||isPresent seen, tracked independent of which style's view is
+  // currently visible (bubble style hides the floating Lottie view entirely, so its
+  // visibility alone can't tell us whether someone is actually present).
+  private var lastPresenceActive: Boolean = false
 
   /**
    * AJ fork: dispatches to whichever presence indicator style is active.
    * Long-press on the indicator (wired in onViewCreated) flips the preference
    * and instantly re-renders with the other style.
    */
-  private fun updatePresenceIndicator(isTyping: Boolean, isPresent: Boolean) {
-    val useLines = org.thoughtcrime.securesms.util.TextSecurePreferences.isPresenceLinesEnabled(requireContext())
+  private fun updatePresenceIndicator(isTyping: Boolean, isPresent: Boolean, typists: List<Recipient> = emptyList()) {
+    lastPresenceActive = isTyping || isPresent
+
+    val style = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
+    val isBubble = style == 2
+
+    // AJ fork: bubble style renders inside the message list via typingIndicatorAdapter
+    // instead of the floating Lottie view - keep them mutually exclusive.
+    if (isBubble) {
+      if (presenceIndicatorLoadedRaw != -1) {
+        // Coming from cat/lines - collapse the floating view immediately, no fade.
+        val cat = binding.conversationPresenceIndicator
+        cat.cancelAnimation()
+        cat.animate().cancel()
+        cat.visibility = View.GONE
+        cat.translationY = 0f
+        cat.alpha = 1f
+        catUiState = CatUiState.HIDDEN
+        linesUiState = LinesUiState.HIDDEN
+        presenceIndicatorLoadedRaw = -1
+        binding.conversationItemRecycler.setPadding(
+          binding.conversationItemRecycler.paddingLeft,
+          binding.conversationItemRecycler.paddingTop,
+          binding.conversationItemRecycler.paddingRight,
+          0
+        )
+      }
+
+      typingIndicatorAdapter.setState(
+        ConversationTypingIndicatorAdapter.State(
+          typists = typists,
+          hasWallpaper = args.wallpaper != null,
+          isGroupThread = viewModel.recipientSnapshot?.isGroup ?: false,
+          isPresentOnly = isPresent && !isTyping
+        )
+      )
+      return
+    }
+
+    // Not bubble style - make sure the bubble row is cleared out.
+    if (typingIndicatorAdapter.itemCount != 0) {
+      typingIndicatorAdapter.setState(ConversationTypingIndicatorAdapter.State())
+    }
+
+    val useLines = style == 1
     val wantRaw = if (useLines) R.raw.presence_lines_indicator else R.raw.presence_cat_indicator
     val cat = binding.conversationPresenceIndicator
     if (presenceIndicatorLoadedRaw != wantRaw) {
