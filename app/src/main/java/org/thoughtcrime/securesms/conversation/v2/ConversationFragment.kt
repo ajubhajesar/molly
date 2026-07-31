@@ -71,7 +71,6 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.ConversationLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -549,7 +548,6 @@ class ConversationFragment :
   private lateinit var conversationActivityResultContracts: ConversationActivityResultContracts
   private lateinit var scrollToPositionDelegate: ScrollToPositionDelegate
   private lateinit var adapter: ConversationAdapterV2
-  private lateinit var typingIndicatorAdapter: ConversationTypingIndicatorAdapter
   private lateinit var recyclerViewColorizer: RecyclerViewColorizer
   private lateinit var attachmentManager: AttachmentManager
   private lateinit var multiselectItemDecoration: MultiselectItemDecoration
@@ -662,8 +660,12 @@ class ConversationFragment :
     // AJ fork: long-press the presence indicator to cycle cat -> lines -> bubble -> cat.
     // Only forces a live preview if the indicator was already visible (i.e. someone is
     // genuinely present/typing right now) — never fakes presence when it's actually hidden.
-    binding.conversationPresenceIndicator.setOnLongClickListener {
-      val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING || linesUiState == LinesUiState.LOOPING
+    // Attached to BOTH floating views (Lottie cat/lines + bubble) since only one of them
+    // is visible at a time depending on style - whichever is showing must stay long-pressable
+    // so the cycle can always continue, including from bubble style.
+    val cyclePresenceStyleListener = View.OnLongClickListener {
+      val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING ||
+        linesUiState == LinesUiState.LOOPING || binding.conversationBubbleIndicator.isActive()
       val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
       val next = (current + 1) % 3
       org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), next)
@@ -678,6 +680,8 @@ class ConversationFragment :
       }
       true
     }
+    binding.conversationPresenceIndicator.setOnLongClickListener(cyclePresenceStyleListener)
+    binding.conversationBubbleIndicator.setOnLongClickListener(cyclePresenceStyleListener)
 
     if (requireActivity() is ConversationActivity) {
       FullscreenHelper(requireActivity()).showSystemUI()
@@ -1549,11 +1553,12 @@ class ConversationFragment :
     val style = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
     val isBubble = style == 2
 
-    // AJ fork: bubble style renders inside the message list via typingIndicatorAdapter
-    // instead of the floating Lottie view - keep them mutually exclusive.
+    // AJ fork: bubble style is a floating pinned view (conversationBubbleIndicator), same
+    // fixed slot above the input bar as cat/lines - NOT a RecyclerView row anymore, so it
+    // can't get scrolled out of view or pushed down by incoming/existing chat content.
     if (isBubble) {
       if (presenceIndicatorLoadedRaw != -1) {
-        // Coming from cat/lines - collapse the floating view immediately, no fade.
+        // Coming from cat/lines - collapse the floating Lottie view immediately, no fade.
         val cat = binding.conversationPresenceIndicator
         cat.cancelAnimation()
         cat.animate().cancel()
@@ -1571,20 +1576,23 @@ class ConversationFragment :
         )
       }
 
-      typingIndicatorAdapter.setState(
-        ConversationTypingIndicatorAdapter.State(
-          typists = typists,
-          hasWallpaper = args.wallpaper != null,
-          isGroupThread = viewModel.recipientSnapshot?.isGroup ?: false,
-          isPresentOnly = isPresent && !isTyping
-        )
-      )
+      updatePresenceBubble(isTyping, isPresent, typists)
       return
     }
 
-    // Not bubble style - make sure the bubble row is cleared out.
-    if (typingIndicatorAdapter.itemCount != 0) {
-      typingIndicatorAdapter.setState(ConversationTypingIndicatorAdapter.State())
+    // Not bubble style - make sure the floating bubble view is collapsed.
+    if (binding.conversationBubbleIndicator.visibility != View.GONE) {
+      val bubble = binding.conversationBubbleIndicator
+      bubble.animate().cancel()
+      bubble.visibility = View.GONE
+      bubble.translationY = 0f
+      bubble.alpha = 1f
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        0
+      )
     }
 
     val useLines = style == 1
@@ -1633,6 +1641,66 @@ class ConversationFragment :
       cat.layoutParams = params
     }
     if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
+  }
+
+  /**
+   * AJ fork: bubble indicator - the classic avatar + dots widget (ConversationTypingView),
+   * now floating in the same fixed slot as cat/lines instead of living in the message list.
+   * TYPING       -> avatar + animated dots (unchanged ConversationTypingView behaviour)
+   * PRESENT only -> "In chat" text in the same bubble
+   * neither      -> fade out / slide down, same treatment as cat/lines
+   */
+  private fun updatePresenceBubble(isTyping: Boolean, isPresent: Boolean, typists: List<Recipient>) {
+    val bubble = binding.conversationBubbleIndicator
+    val shouldShow = isTyping || isPresent
+
+    if (!shouldShow) {
+      if (bubble.visibility == View.GONE) return // already hidden, nothing to do
+
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        0
+      )
+      bubble.animate()
+        .translationY(bubble.height.toFloat())
+        .alpha(0f)
+        .setDuration(220)
+        .withEndAction {
+          // Re-check: presence may have returned during this 220ms fade.
+          if (!lastPresenceActive) {
+            bubble.visibility = View.GONE
+            bubble.translationY = 0f
+            bubble.alpha = 1f
+          }
+        }
+        .start()
+      return
+    }
+
+    val wasHidden = bubble.visibility != View.VISIBLE
+    if (wasHidden) {
+      bubble.animate().cancel()
+      bubble.translationY = 0f
+      bubble.alpha = 1f
+      bubble.visibility = View.VISIBLE
+      val pad = resources.getDimensionPixelSize(R.dimen.presence_cat_recycler_pad)
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        pad
+      )
+    }
+
+    bubble.setTypists(
+      Glide.with(this),
+      typists,
+      viewModel.recipientSnapshot?.isGroup ?: false,
+      args.wallpaper != null,
+      isPresent && !isTyping
+    )
   }
 
   /**
@@ -2472,8 +2540,6 @@ class ConversationFragment :
       displayDialogFragment = { it.show(childFragmentManager, null) }
     )
 
-    typingIndicatorAdapter = ConversationTypingIndicatorAdapter(Glide.with(this))
-
     scrollToPositionDelegate = ScrollToPositionDelegate(
       recyclerView = binding.conversationItemRecycler,
       canJumpToPosition = adapter::canJumpToPosition
@@ -2484,7 +2550,7 @@ class ConversationFragment :
     recyclerViewColorizer = RecyclerViewColorizer(binding.conversationItemRecycler)
     recyclerViewColorizer.setChatColors(args.chatColors)
 
-    binding.conversationItemRecycler.adapter = ConcatAdapter(typingIndicatorAdapter, adapter)
+    binding.conversationItemRecycler.adapter = adapter
     multiselectItemDecoration = MultiselectItemDecoration(
       requireContext()
     ) { viewModel.wallpaperSnapshot }

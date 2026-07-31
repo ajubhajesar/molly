@@ -278,6 +278,20 @@
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         tools:visibility="visible" />
 
+    <!-- AJ fork: bubble presence style (classic avatar + dots), floating in the same fixed
+         slot as conversation_presence_indicator above - not a RecyclerView row, so it can't
+         be scrolled out of view. Only one of the two is ever visible at a time. -->
+    <include
+        android:id="@+id/conversation_bubble_indicator"
+        layout="@layout/conversation_typing_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/conversation_input_panel"
+        app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
+        tools:visibility="visible" />
+
     <include
         android:id="@+id/conversation_input_panel"
         layout="@layout/conversation_input_panel"
