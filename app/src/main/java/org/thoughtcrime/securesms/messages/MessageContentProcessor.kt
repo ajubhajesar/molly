@@ -33,7 +33,6 @@ import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.groupMasterKey
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasDisallowedAnnouncementOnlyContent
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasGroupContext
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasSignedGroupChange
-import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.hasStarted
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isExpirationUpdate
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isMediaMessage
 import org.thoughtcrime.securesms.messages.SignalServiceProtoUtil.isValid
@@ -598,12 +597,28 @@ open class MessageContentProcessor(private val context: Context) {
       return
     }
 
-    if (typingMessage.hasStarted) {
-      Log.d(TAG, "Typing/heartbeat STARTED on thread $threadId")
-      AppDependencies.typingStatusRepository.onTypingStarted(context, threadId, senderRecipient, metadata.sourceDeviceId)
-    } else {
-      Log.d(TAG, "Typing stopped on thread $threadId")
-      AppDependencies.typingStatusRepository.onTypingStopped(threadId, senderRecipient, metadata.sourceDeviceId, false)
+    // AJ fork: PRESENT/NOT_PRESENT are the active-status signal, fully independent of real
+    // typing STARTED/STOPPED - see TypingStatusRepository.onPresent/onAbsent.
+    when (typingMessage.action) {
+      TypingMessage.Action.STARTED -> {
+        Log.d(TAG, "Typing STARTED on thread $threadId")
+        AppDependencies.typingStatusRepository.onTypingStarted(context, threadId, senderRecipient, metadata.sourceDeviceId)
+      }
+      TypingMessage.Action.STOPPED -> {
+        Log.d(TAG, "Typing STOPPED on thread $threadId")
+        AppDependencies.typingStatusRepository.onTypingStopped(threadId, senderRecipient, metadata.sourceDeviceId, false)
+      }
+      TypingMessage.Action.PRESENT -> {
+        Log.d(TAG, "Active status PRESENT on thread $threadId")
+        AppDependencies.typingStatusRepository.onPresent(threadId, senderRecipient)
+      }
+      TypingMessage.Action.NOT_PRESENT -> {
+        Log.d(TAG, "Active status NOT_PRESENT on thread $threadId")
+        AppDependencies.typingStatusRepository.onAbsent(threadId, senderRecipient)
+      }
+      else -> {
+        Log.w(TAG, "Unknown typing action on thread $threadId")
+      }
     }
   }
 

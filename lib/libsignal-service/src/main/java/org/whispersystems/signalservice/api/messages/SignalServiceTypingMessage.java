@@ -6,7 +6,7 @@ import java.util.Optional;
 public class SignalServiceTypingMessage {
 
   public enum Action {
-    UNKNOWN, STARTED, STOPPED, PRESENT
+    UNKNOWN, STARTED, STOPPED, PRESENT, NOT_PRESENT
   }
 
   private final Action           action;
@@ -41,5 +41,9 @@ public class SignalServiceTypingMessage {
 
   public boolean isPresent() {
     return action == Action.PRESENT;
+  }
+
+  public boolean isNotPresent() {
+    return action == Action.NOT_PRESENT;
   }
 }

@@ -18,6 +18,7 @@ import org.signal.mediasend.MediaSendDependencies
 import org.thoughtcrime.securesms.BuildConfig
 import org.thoughtcrime.securesms.components.TypingStatusRepository
 import org.thoughtcrime.securesms.components.TypingStatusSender
+import org.thoughtcrime.securesms.components.ActiveStatusSender
 import org.thoughtcrime.securesms.crypto.storage.SignalServiceDataStoreImpl
 import org.thoughtcrime.securesms.database.DatabaseObserver
 import org.thoughtcrime.securesms.database.PendingRetryReceiptCache
@@ -157,6 +158,11 @@ object AppDependencies {
   @JvmStatic
   val typingStatusSender: TypingStatusSender by lazy {
     provider.provideTypingStatusSender()
+  }
+
+  @JvmStatic
+  val activeStatusSender: ActiveStatusSender by lazy {
+    provider.provideActiveStatusSender()
   }
 
   @JvmStatic
@@ -441,6 +447,7 @@ object AppDependencies {
     fun provideExpiringMessageManager(): ExpiringMessageManager
     fun provideDeletedCallEventManager(): DeletedCallEventManager
     fun provideTypingStatusRepository(): TypingStatusRepository
+    fun provideActiveStatusSender(): ActiveStatusSender
     fun provideTypingStatusSender(): TypingStatusSender
     fun provideDatabaseObserver(): DatabaseObserver
     fun provideSignalCallManager(): SignalCallManager

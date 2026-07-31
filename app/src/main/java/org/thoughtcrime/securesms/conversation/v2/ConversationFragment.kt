@@ -785,7 +785,7 @@ class ConversationFragment :
       AppDependencies.messageNotifier.setVisibleBubbleThread(ConversationId.forConversation(args.threadId))
     }
 
-    AppDependencies.typingStatusSender.onConversationResumed(args.threadId)
+    AppDependencies.activeStatusSender.onConversationResumed(args.threadId)
 
     viewModel.updateIdentityRecordsInBackground()
 
@@ -819,7 +819,7 @@ class ConversationFragment :
       AppDependencies.messageNotifier.clearVisibleBubbleThread()
     }
 
-    AppDependencies.typingStatusSender.onConversationPaused(args.threadId)
+    AppDependencies.activeStatusSender.onConversationPaused(args.threadId)
 
     if (activity?.isFinishing == true) {
       activity?.overridePendingTransition(R.anim.fade_scale_in, R.anim.slide_to_end)

@@ -20,6 +20,7 @@ import org.signal.libsignal.zkgroup.receipts.ClientZkReceiptOperations;
 import org.thoughtcrime.securesms.BuildConfig;
 import org.thoughtcrime.securesms.components.TypingStatusRepository;
 import org.thoughtcrime.securesms.components.TypingStatusSender;
+import org.thoughtcrime.securesms.components.ActiveStatusSender;
 import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.thoughtcrime.securesms.crypto.storage.SignalBaseIdentityKeyStore;
 import org.thoughtcrime.securesms.crypto.storage.SignalIdentityKeyStore;
@@ -48,6 +49,7 @@ import org.thoughtcrime.securesms.jobs.PushProcessMessageJob;
 import org.thoughtcrime.securesms.jobs.ReactionSendJob;
 import org.thoughtcrime.securesms.jobs.SendDeliveryReceiptJob;
 import org.thoughtcrime.securesms.jobs.TypingSendJob;
+import org.thoughtcrime.securesms.jobs.ActiveStatusSendJob;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
 import org.thoughtcrime.securesms.megaphone.MegaphoneRepository;
 import org.thoughtcrime.securesms.messages.IncomingMessageObserver;
@@ -216,6 +218,7 @@ public class ApplicationDependencyProvider implements AppDependencies.Provider {
                                                                       PushGroupSendJob.KEY,
                                                                       ReactionSendJob.KEY,
                                                                       TypingSendJob.KEY,
+                                                                      ActiveStatusSendJob.KEY,
                                                                       GroupCallUpdateSendJob.KEY,
                                                                       SendDeliveryReceiptJob.KEY
                                                                   ))
@@ -305,6 +308,11 @@ public class ApplicationDependencyProvider implements AppDependencies.Provider {
   @Override
   public @NonNull TypingStatusSender provideTypingStatusSender() {
     return new TypingStatusSender();
+  }
+
+  @Override
+  public @NonNull ActiveStatusSender provideActiveStatusSender() {
+    return new ActiveStatusSender();
   }
 
   @Override
