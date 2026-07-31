@@ -147,6 +147,7 @@ import org.thoughtcrime.securesms.components.InsetAwareConstraintLayout
 import org.thoughtcrime.securesms.components.ProgressCardDialogFragment
 import org.thoughtcrime.securesms.components.ScrollToPositionDelegate
 import org.thoughtcrime.securesms.components.SendButton
+import org.thoughtcrime.securesms.components.ConversationTypingView
 import org.thoughtcrime.securesms.components.TypingStatusRepository
 import org.thoughtcrime.securesms.components.SignalProgressDialog
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
@@ -665,7 +666,7 @@ class ConversationFragment :
     // so the cycle can always continue, including from bubble style.
     val cyclePresenceStyleListener = View.OnLongClickListener {
       val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING ||
-        linesUiState == LinesUiState.LOOPING || binding.conversationBubbleIndicator.isActive()
+        linesUiState == LinesUiState.LOOPING || (binding.conversationBubbleIndicator as ConversationTypingView).isActive()
       val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
       val next = (current + 1) % 3
       org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), next)
@@ -1582,7 +1583,7 @@ class ConversationFragment :
 
     // Not bubble style - make sure the floating bubble view is collapsed.
     if (binding.conversationBubbleIndicator.visibility != View.GONE) {
-      val bubble = binding.conversationBubbleIndicator
+      val bubble = binding.conversationBubbleIndicator as ConversationTypingView
       bubble.animate().cancel()
       bubble.visibility = View.GONE
       bubble.translationY = 0f
@@ -1651,7 +1652,7 @@ class ConversationFragment :
    * neither      -> fade out / slide down, same treatment as cat/lines
    */
   private fun updatePresenceBubble(isTyping: Boolean, isPresent: Boolean, typists: List<Recipient>) {
-    val bubble = binding.conversationBubbleIndicator
+    val bubble = binding.conversationBubbleIndicator as ConversationTypingView
     val shouldShow = isTyping || isPresent
 
     if (!shouldShow) {
