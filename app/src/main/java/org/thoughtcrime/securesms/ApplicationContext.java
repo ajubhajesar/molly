@@ -659,6 +659,7 @@ public class ApplicationContext extends Application implements AppForegroundObse
       PersistentAlarmManagerListener.cancel(this, MessageBackupListener.class);
       PersistentAlarmManagerListener.cancel(this, RotateSenderCertificateListener.class);
       PersistentAlarmManagerListener.cancel(this, AnalyzeDatabaseAlarmListener.class);
+      PersistentAlarmManagerListener.cancel(this, ApkUpdateRefreshListener.class); // AJ fork: was missing - same class as the others above, just never added
       RoutineMessageFetchReceiver.startOrUpdateAlarm(this); // already NO_BACKGROUND-aware, self-cancels
       setBackgroundReceiversEnabled(false);
       return;
@@ -687,11 +688,13 @@ public class ApplicationContext extends Application implements AppForegroundObse
     PackageManager pm = getPackageManager();
     Class<?>[] receivers = {
         org.thoughtcrime.securesms.messageprocessingalarm.RoutineMessageFetchReceiver.class,
+        org.thoughtcrime.securesms.service.RotateSignedPreKeyListener.class,
         org.thoughtcrime.securesms.service.DirectoryRefreshListener.class,
         org.thoughtcrime.securesms.service.LocalBackupListener.class,
         org.thoughtcrime.securesms.service.MessageBackupListener.class,
         org.thoughtcrime.securesms.service.RotateSenderCertificateListener.class,
         org.thoughtcrime.securesms.service.AnalyzeDatabaseAlarmListener.class,
+        org.thoughtcrime.securesms.apkupdate.ApkUpdateRefreshListener.class,
         org.thoughtcrime.securesms.service.BootReceiver.class,
     };
     for (Class<?> receiver : receivers) {

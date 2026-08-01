@@ -1,6 +1,7 @@
 package org.thoughtcrime.securesms.gcm;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
@@ -25,6 +26,27 @@ import java.util.Locale;
 public class FcmReceiveService extends FirebaseMessagingService {
 
   private static final String TAG = Log.tag(FcmReceiveService.class);
+
+  // AJ fork diagnostic: this service is exported=true in the manifest (upstream Molly has it
+  // false), meaning any app on the device - not just the Firebase SDK internally - can invoke
+  // it directly. Logging every raw onStartCommand() call (before Firebase's own parsing/
+  // dispatch to onMessageReceived) catches calls that wouldn't otherwise show up, since a
+  // malformed/non-Firebase-shaped Intent can start this service without ever reaching
+  // onMessageReceived(). No adb/dumpsys needed - this lands in the same debug log export
+  // already in use.
+  @Override
+  public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+    if (intent == null) {
+      Log.i(TAG, "onStartCommand() called with a null Intent (flags=" + flags + ", startId=" + startId + ")");
+    } else {
+      Log.i(TAG, "onStartCommand() action=" + intent.getAction()
+          + " package=" + intent.getPackage()
+          + " component=" + intent.getComponent()
+          + " extras=" + (intent.getExtras() != null ? intent.getExtras().keySet() : "none")
+          + " flags=" + flags + " startId=" + startId);
+    }
+    return super.onStartCommand(intent, flags, startId);
+  }
 
   @Override
   public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
