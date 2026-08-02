@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Process;
 import android.os.SystemClock;
 
 import androidx.core.app.NotificationCompat;
@@ -39,6 +40,8 @@ import org.thoughtcrime.securesms.MainActivity;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.dependencies.AppDependencies;
+import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod;
+import org.thoughtcrime.securesms.keyvalue.SignalStore;
 import org.thoughtcrime.securesms.migrations.ApplicationMigrations;
 import org.thoughtcrime.securesms.notifications.NotificationChannels;
 import org.thoughtcrime.securesms.util.DynamicLanguage;
@@ -149,6 +152,18 @@ public class KeyCachingService extends Service {
     Intent intent = new Intent(this, DummyActivity.class);
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     startActivity(intent);
+
+    // AJ fork: swiping the app away from Recents is an unambiguous "I'm done" signal.
+    // Only relevant when NO_BACKGROUND is set - there's no persistent connection worth
+    // preserving in that mode anyway, and letting the process linger half-alive in the
+    // background (rather than dying cleanly here) is exactly the window where it can hang/
+    // ANR and get killed+relaunched by the OS on its own unpredictable schedule instead. A
+    // fresh cold start next time the user opens the app is strictly cheaper than that.
+    if (SignalStore.settings().getPreferredNotificationMethod() == NotificationDeliveryMethod.NO_BACKGROUND) {
+      Log.i(TAG, "Task removed and NO_BACKGROUND is set - killing process.");
+      stopSelf();
+      Process.killProcess(Process.myPid());
+    }
   }
 
   private void handleCacheKey() {
