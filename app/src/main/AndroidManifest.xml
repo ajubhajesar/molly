@@ -1357,6 +1357,16 @@
             </intent-filter>
         </service>
 
+        <!-- AJ fork: wakes Molly to check for messages when the paired device's companion
+             app relays a "hii" wake signal. Deliberately ungated - see WakeForMessagesReceiver. -->
+        <receiver
+            android:name=".gcm.WakeForMessagesReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.aj.signal.ACTION_WAKE_FOR_MESSAGES" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".gcm.FcmJobService"
             android:exported="false"

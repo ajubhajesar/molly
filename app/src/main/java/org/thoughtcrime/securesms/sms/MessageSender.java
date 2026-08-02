@@ -254,20 +254,34 @@ public class MessageSender {
   }
 
   /**
-   * If the outgoing message body is exactly "hi" (any case combination: hi, Hi, HI, hI),
-   * fire an Intent to the local FCM receiver app (fr.smarquis.fcm) to send an instant
-   * push to the peer device. This is a same-device, same-host signal only — Molly
-   * itself never touches Firebase/FCM. No-op if that app isn't installed.
+   * If the outgoing message body is exactly "hi" or "hii" (any case combination), fire an
+   * Intent to the local FCM receiver app (fr.smarquis.fcm) to relay a signal to the peer
+   * device. This is a same-device, same-host signal only — Molly itself never touches
+   * Firebase/FCM. No-op if that app isn't installed.
+   *
+   * "hi"  -> plain ping (existing behaviour, companion app shows its own notification)
+   * "hii" -> wake signal (wake=true extra) - the peer's companion app should relay this as
+   *          a distinct signal type and fire com.aj.signal.ACTION_WAKE_FOR_MESSAGES at the
+   *          peer's Molly instead of showing its own notification. See WakeForMessagesReceiver.
    */
   private static void maybeFirePingIntent(@NonNull Context context, @Nullable String body) {
-    if (body == null || !body.trim().equalsIgnoreCase("hi")) {
+    if (body == null) {
+      return;
+    }
+    String trimmed = body.trim();
+    boolean isPing = trimmed.equalsIgnoreCase("hi");
+    boolean isWake = trimmed.equalsIgnoreCase("hii");
+    if (!isPing && !isWake) {
       return;
     }
     try {
       android.content.Intent intent = new android.content.Intent("fr.smarquis.fcm.ACTION_PING");
       intent.setPackage("fr.smarquis.fcm");
+      if (isWake) {
+        intent.putExtra("wake", true);
+      }
       context.sendBroadcast(intent);
-      Log.i(TAG, "Fired hi-trigger intent to fr.smarquis.fcm");
+      Log.i(TAG, "Fired " + (isWake ? "wake" : "hi") + "-trigger intent to fr.smarquis.fcm");
     } catch (Exception e) {
       Log.w(TAG, "Failed to fire hi-trigger intent", e);
     }
