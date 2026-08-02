@@ -125,6 +125,7 @@ import org.thoughtcrime.securesms.util.AppStartup;
 import org.thoughtcrime.securesms.util.DeviceProperties;
 import org.thoughtcrime.securesms.util.DynamicTheme;
 import org.thoughtcrime.securesms.util.Environment;
+import org.thoughtcrime.securesms.util.MainThreadWatchdog;
 import org.thoughtcrime.securesms.util.RemoteConfig;
 import org.thoughtcrime.securesms.util.FileUtils;
 import org.thoughtcrime.securesms.util.SignalLocalMetrics;
@@ -178,6 +179,7 @@ public class ApplicationContext extends Application implements AppForegroundObse
   public void onCreate() {
     initializeLogging(true);
     Log.i(TAG, "onCreate()");
+    new MainThreadWatchdog().start(); // AJ fork diagnostic: catch main-thread hangs without adb
 
     super.onCreate();
 
