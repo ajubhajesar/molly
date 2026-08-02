@@ -143,6 +143,15 @@ public class KeyCachingService extends Service {
     }
   }
 
+  // AJ fork: how long to wait after onTaskRemoved() before the hard kill. Not instant -
+  // ActiveStatusSendJob (the active-status NOT_PRESENT signal) is memory-only/unpersisted,
+  // so it needs a real chance to reach the network before the process dies, or the signal is
+  // lost for good (no fallback timeout on the receiving end - see TypingStatusRepository).
+  // The old DummyActivity Recents-bug workaround below also needs this: startActivity() is
+  // an async Binder call, and killing immediately can cut it off before DummyActivity.
+  // onCreate() ever runs.
+  private static final long TASK_REMOVED_KILL_DELAY_MS = 2000;
+
   /**
    * Workaround for Android bug:
    * https://code.google.com/p/android/issues/detail?id=53313
@@ -160,9 +169,15 @@ public class KeyCachingService extends Service {
     // ANR and get killed+relaunched by the OS on its own unpredictable schedule instead. A
     // fresh cold start next time the user opens the app is strictly cheaper than that.
     if (SignalStore.settings().getPreferredNotificationMethod() == NotificationDeliveryMethod.NO_BACKGROUND) {
-      Log.i(TAG, "Task removed and NO_BACKGROUND is set - killing process.");
+      Log.i(TAG, "Task removed and NO_BACKGROUND is set - killing process in " + TASK_REMOVED_KILL_DELAY_MS + "ms.");
       stopSelf();
-      Process.killProcess(Process.myPid());
+      new Thread(() -> {
+        try {
+          Thread.sleep(TASK_REMOVED_KILL_DELAY_MS);
+        } catch (InterruptedException ignored) {
+        }
+        Process.killProcess(Process.myPid());
+      }, "signal-DelayedTaskRemovedKill").start();
     }
   }
 
