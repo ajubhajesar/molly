@@ -616,6 +616,10 @@ open class MessageContentProcessor(private val context: Context) {
         Log.d(TAG, "Active status NOT_PRESENT on thread $threadId")
         AppDependencies.typingStatusRepository.onAbsent(threadId, senderRecipient)
       }
+      TypingMessage.Action.REQUEST_PRESENCE -> {
+        Log.d(TAG, "Presence requested on thread $threadId")
+        AppDependencies.activeStatusSender.onPresenceRequested(threadId)
+      }
       else -> {
         Log.w(TAG, "Unknown typing action on thread $threadId")
       }

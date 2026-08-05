@@ -292,6 +292,7 @@ public final class JobManagerFactories {
       put(TrimThreadJob.KEY,                           new TrimThreadJob.Factory());
       put(TypingSendJob.KEY,                           new TypingSendJob.Factory());
       put(ActiveStatusSendJob.KEY,                     new ActiveStatusSendJob.Factory());
+      put(RequestPresenceSendJob.KEY,                  new RequestPresenceSendJob.Factory());
       put(UnpinMessageJob.KEY,                         new UnpinMessageJob.Factory());
       put(UploadAttachmentToArchiveJob.KEY,            new UploadAttachmentToArchiveJob.Factory());
 

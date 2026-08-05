@@ -50,6 +50,7 @@ import org.thoughtcrime.securesms.jobs.ReactionSendJob;
 import org.thoughtcrime.securesms.jobs.SendDeliveryReceiptJob;
 import org.thoughtcrime.securesms.jobs.TypingSendJob;
 import org.thoughtcrime.securesms.jobs.ActiveStatusSendJob;
+import org.thoughtcrime.securesms.jobs.RequestPresenceSendJob;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
 import org.thoughtcrime.securesms.megaphone.MegaphoneRepository;
 import org.thoughtcrime.securesms.messages.IncomingMessageObserver;
@@ -219,6 +220,7 @@ public class ApplicationDependencyProvider implements AppDependencies.Provider {
                                                                       ReactionSendJob.KEY,
                                                                       TypingSendJob.KEY,
                                                                       ActiveStatusSendJob.KEY,
+                                                                      RequestPresenceSendJob.KEY,
                                                                       GroupCallUpdateSendJob.KEY,
                                                                       SendDeliveryReceiptJob.KEY
                                                                   ))

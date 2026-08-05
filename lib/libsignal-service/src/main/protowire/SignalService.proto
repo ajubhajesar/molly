@@ -466,6 +466,12 @@ message TypingMessage {
     // AJ fork: active-status presence signals, independent of real typing STARTED/STOPPED.
     PRESENT = 2;
     NOT_PRESENT = 3;
+    // AJ fork: sent once when a device's own connection is restored while a conversation is
+    // open, asking the peer to reply with their true current state - typing-type messages
+    // are not queued server-side for offline delivery, so either side's last PRESENT/
+    // NOT_PRESENT can be silently dropped if the other was disconnected at that moment. This
+    // closes that gap without a heartbeat: edge-triggered off a real reconnect, not a timer.
+    REQUEST_PRESENCE = 4;
   }
 
   optional uint64 timestamp = 1;
