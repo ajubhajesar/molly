@@ -255,15 +255,22 @@ public class MessageSender {
 
   /**
    * If the outgoing message body is exactly "hi" or "hii" (any case combination), fire an
-   * Intent to the local FCM receiver app (fr.smarquis.fcm) to relay a signal to the peer
-   * device. This is a same-device, same-host signal only — Molly itself never touches
-   * Firebase/FCM. No-op if that app isn't installed.
+   * Intent to the local FCM receiver app(s) to relay a signal to the peer device. This is a
+   * same-device, same-host signal only — Molly itself never touches Firebase/FCM. No-op for
+   * whichever target isn't installed.
    *
    * "hi"  -> plain ping (existing behaviour, companion app shows its own notification)
    * "hii" -> wake signal (wake=true extra) - the peer's companion app should relay this as
    *          a distinct signal type and fire com.aj.signal.ACTION_WAKE_FOR_MESSAGES at the
    *          peer's Molly instead of showing its own notification. See WakeForMessagesReceiver.
+   *
+   * Sent to both fr.smarquis.fcm and com.viber.voip (the second is this device's other
+   * companion-app build, using Viber's package name) - same action string, same extras,
+   * each target attempted and logged independently so a problem with one doesn't affect
+   * the other.
    */
+  private static final String[] PING_TARGET_PACKAGES = { "fr.smarquis.fcm", "com.viber.voip" };
+
   private static void maybeFirePingIntent(@NonNull Context context, @Nullable String body) {
     if (body == null) {
       return;
@@ -274,16 +281,22 @@ public class MessageSender {
     if (!isPing && !isWake) {
       return;
     }
+    for (String targetPackage : PING_TARGET_PACKAGES) {
+      sendPingBroadcast(context, targetPackage, isWake);
+    }
+  }
+
+  private static void sendPingBroadcast(@NonNull Context context, @NonNull String targetPackage, boolean isWake) {
     try {
       android.content.Intent intent = new android.content.Intent("fr.smarquis.fcm.ACTION_PING");
-      intent.setPackage("fr.smarquis.fcm");
+      intent.setPackage(targetPackage);
       if (isWake) {
         intent.putExtra("wake", true);
       }
       context.sendBroadcast(intent);
-      Log.i(TAG, "Fired " + (isWake ? "wake" : "hi") + "-trigger intent to fr.smarquis.fcm");
+      Log.i(TAG, "Fired " + (isWake ? "wake" : "hi") + "-trigger intent to " + targetPackage);
     } catch (Exception e) {
-      Log.w(TAG, "Failed to fire hi-trigger intent", e);
+      Log.w(TAG, "Failed to fire hi-trigger intent to " + targetPackage, e);
     }
   }
 
