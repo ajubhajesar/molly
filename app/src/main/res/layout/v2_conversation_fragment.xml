@@ -292,6 +292,22 @@
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         tools:visibility="visible" />
 
+    <!-- AJ fork: "text" presence style - floating in the same fixed slot as the other three.
+         Declared directly (not via <include>) since PresenceWaveTextView builds its own
+         children programmatically - this also means ViewBinding resolves it as
+         PresenceWaveTextView directly, no cast needed, unlike conversation_bubble_indicator
+         above (that one goes through <include> of a viewBindingIgnore layout). -->
+    <org.thoughtcrime.securesms.components.PresenceWaveTextView
+        android:id="@+id/conversation_text_indicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="10dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/conversation_input_panel"
+        app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
+        tools:visibility="visible" />
+
     <include
         android:id="@+id/conversation_input_panel"
         layout="@layout/conversation_input_panel"

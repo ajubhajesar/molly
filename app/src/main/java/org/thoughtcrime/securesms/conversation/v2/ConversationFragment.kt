@@ -658,21 +658,22 @@ class ConversationFragment :
 
     disposables.bindTo(viewLifecycleOwner)
 
-    // AJ fork: long-press the presence indicator to cycle cat -> lines -> bubble -> cat.
+    // AJ fork: long-press the presence indicator to cycle cat -> lines -> bubble -> text -> cat.
     // Only forces a live preview if the indicator was already visible (i.e. someone is
     // genuinely present/typing right now) — never fakes presence when it's actually hidden.
-    // Attached to BOTH floating views (Lottie cat/lines + bubble) since only one of them
-    // is visible at a time depending on style - whichever is showing must stay long-pressable
-    // so the cycle can always continue, including from bubble style.
+    // Attached to all four floating views since only one is visible at a time depending on
+    // style - whichever is showing must stay long-pressable so the cycle can always continue.
     val cyclePresenceStyleListener = View.OnLongClickListener {
       val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING ||
-        linesUiState == LinesUiState.LOOPING || (binding.conversationBubbleIndicator as ConversationTypingView).isActive()
+        linesUiState == LinesUiState.LOOPING || (binding.conversationBubbleIndicator as ConversationTypingView).isActive() ||
+        binding.conversationTextIndicator.isActive
       val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
-      val next = (current + 1) % 3
+      val next = (current + 1) % 4
       org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), next)
       val label = when (next) {
         1 -> "Presence: lines style"
         2 -> "Presence: bubble style"
+        3 -> "Presence: text style"
         else -> "Presence: cat style"
       }
       Toast.makeText(requireContext(), label, Toast.LENGTH_SHORT).show()
@@ -683,6 +684,7 @@ class ConversationFragment :
     }
     binding.conversationPresenceIndicator.setOnLongClickListener(cyclePresenceStyleListener)
     binding.conversationBubbleIndicator.setOnLongClickListener(cyclePresenceStyleListener)
+    binding.conversationTextIndicator.setOnLongClickListener(cyclePresenceStyleListener)
 
     if (requireActivity() is ConversationActivity) {
       FullscreenHelper(requireActivity()).showSystemUI()
@@ -1553,48 +1555,29 @@ class ConversationFragment :
 
     val style = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
     val isBubble = style == 2
+    val isText = style == 3
 
     // AJ fork: bubble style is a floating pinned view (conversationBubbleIndicator), same
     // fixed slot above the input bar as cat/lines - NOT a RecyclerView row anymore, so it
     // can't get scrolled out of view or pushed down by incoming/existing chat content.
     if (isBubble) {
-      if (presenceIndicatorLoadedRaw != -1) {
-        // Coming from cat/lines - collapse the floating Lottie view immediately, no fade.
-        val cat = binding.conversationPresenceIndicator
-        cat.cancelAnimation()
-        cat.animate().cancel()
-        cat.visibility = View.GONE
-        cat.translationY = 0f
-        cat.alpha = 1f
-        catUiState = CatUiState.HIDDEN
-        linesUiState = LinesUiState.HIDDEN
-        presenceIndicatorLoadedRaw = -1
-        binding.conversationItemRecycler.setPadding(
-          binding.conversationItemRecycler.paddingLeft,
-          binding.conversationItemRecycler.paddingTop,
-          binding.conversationItemRecycler.paddingRight,
-          0
-        )
-      }
-
+      collapseCatLines()
+      collapseText()
       updatePresenceBubble(isTyping, isPresent, typists)
       return
     }
 
-    // Not bubble style - make sure the floating bubble view is collapsed.
-    if (binding.conversationBubbleIndicator.visibility != View.GONE) {
-      val bubble = binding.conversationBubbleIndicator as ConversationTypingView
-      bubble.animate().cancel()
-      bubble.visibility = View.GONE
-      bubble.translationY = 0f
-      bubble.alpha = 1f
-      binding.conversationItemRecycler.setPadding(
-        binding.conversationItemRecycler.paddingLeft,
-        binding.conversationItemRecycler.paddingTop,
-        binding.conversationItemRecycler.paddingRight,
-        0
-      )
+    // AJ fork: text style - same floating-pinned treatment as bubble, own separate widget.
+    if (isText) {
+      collapseCatLines()
+      collapseBubble()
+      updatePresenceText(isTyping, isPresent)
+      return
     }
+
+    // Not bubble, not text - cat/lines path. Make sure both of those are collapsed.
+    collapseBubble()
+    collapseText()
 
     val useLines = style == 1
     val wantRaw = if (useLines) R.raw.presence_lines_indicator else R.raw.presence_cat_indicator
@@ -1642,6 +1625,102 @@ class ConversationFragment :
       cat.layoutParams = params
     }
     if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
+  }
+
+  /** AJ fork: collapses the cat/lines floating Lottie view immediately, no fade. */
+  private fun collapseCatLines() {
+    if (presenceIndicatorLoadedRaw == -1) return
+    val cat = binding.conversationPresenceIndicator
+    cat.cancelAnimation()
+    cat.animate().cancel()
+    cat.visibility = View.GONE
+    cat.translationY = 0f
+    cat.alpha = 1f
+    catUiState = CatUiState.HIDDEN
+    linesUiState = LinesUiState.HIDDEN
+    presenceIndicatorLoadedRaw = -1
+    binding.conversationItemRecycler.setPadding(
+      binding.conversationItemRecycler.paddingLeft,
+      binding.conversationItemRecycler.paddingTop,
+      binding.conversationItemRecycler.paddingRight,
+      0
+    )
+  }
+
+  /** AJ fork: collapses the bubble floating view immediately, no fade. */
+  private fun collapseBubble() {
+    if (binding.conversationBubbleIndicator.visibility == View.GONE) return
+    val bubble = binding.conversationBubbleIndicator as ConversationTypingView
+    bubble.animate().cancel()
+    bubble.visibility = View.GONE
+    bubble.translationY = 0f
+    bubble.alpha = 1f
+    binding.conversationItemRecycler.setPadding(
+      binding.conversationItemRecycler.paddingLeft,
+      binding.conversationItemRecycler.paddingTop,
+      binding.conversationItemRecycler.paddingRight,
+      0
+    )
+  }
+
+  /** AJ fork: collapses the text floating view immediately, no fade. */
+  private fun collapseText() {
+    if (binding.conversationTextIndicator.visibility == View.GONE) return
+    val text = binding.conversationTextIndicator
+    text.stopAnimation()
+    text.animate().cancel()
+    text.visibility = View.GONE
+    text.translationY = 0f
+    text.alpha = 1f
+    binding.conversationItemRecycler.setPadding(
+      binding.conversationItemRecycler.paddingLeft,
+      binding.conversationItemRecycler.paddingTop,
+      binding.conversationItemRecycler.paddingRight,
+      0
+    )
+  }
+
+  /**
+   * AJ fork: text presence style - PresenceWaveTextView, floating in the same fixed slot as
+   * the other three styles. "In chat" waves when present-only, "Typing" + cycling dot-count
+   * waves when actually typing, hidden entirely when neither.
+   */
+  private fun updatePresenceText(isTyping: Boolean, isPresent: Boolean) {
+    val text = binding.conversationTextIndicator
+    val shouldShow = isTyping || isPresent
+
+    if (!shouldShow) {
+      if (text.visibility == View.GONE) return // already hidden, nothing to do
+
+      text.animate()
+        .translationY(text.height.toFloat())
+        .alpha(0f)
+        .setDuration(220)
+        .withEndAction {
+          // Re-check: presence may have returned during this 220ms fade.
+          if (!lastPresenceActive) {
+            text.stopAnimation()
+            text.visibility = View.GONE
+            text.translationY = 0f
+            text.alpha = 1f
+          }
+        }
+        .start()
+      return
+    }
+
+    val wasHidden = text.visibility != View.VISIBLE
+    if (wasHidden) {
+      text.animate().cancel()
+      text.translationY = 0f
+      text.alpha = 1f
+      text.visibility = View.VISIBLE
+    }
+
+    text.setTyping(isTyping)
+    if (!text.isActive) {
+      text.startAnimation()
+    }
   }
 
   /**
