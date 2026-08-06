@@ -1717,7 +1717,11 @@ class ConversationFragment :
       text.visibility = View.VISIBLE
     }
 
+    text.setHasWallpaper(args.wallpaper != null)
     text.setTyping(isTyping)
+    // AJ fork: isActive() now only reflects the typing-wave loop (present-only has nothing to
+    // animate) - startAnimation() itself no-ops when not typing, so calling it unconditionally
+    // here is safe either way, it just won't do anything for the static "In chat" state.
     if (!text.isActive) {
       text.startAnimation()
     }

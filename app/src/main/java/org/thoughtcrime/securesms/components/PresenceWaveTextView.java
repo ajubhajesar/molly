@@ -2,7 +2,7 @@ package org.thoughtcrime.securesms.components;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -10,35 +10,34 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
-
-import com.google.android.material.color.MaterialColors;
+import androidx.core.content.ContextCompat;
 
 import org.thoughtcrime.securesms.R;
+import org.signal.core.ui.util.ThemeUtil;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * AJ fork: "text" presence style - no avatar/bubble chrome, just words. Mirrors
- * TypingIndicatorView's exact fade+scale wave curve (same shape of animation, same
- * self-driving onDraw()+postInvalidate() render loop) but generalized from 3 fixed dot Views
- * to N per-character TextViews, so an arbitrary string can wave left-to-right instead of just
- * 3 dots. The old bubble style (ConversationTypingView/TypingIndicatorView) is untouched -
- * this is a fully separate, additive style living in its own floating slot.
+ * AJ fork: "text" presence style - same pill treatment as the bubble style's "In chat" state
+ * (literally the same tintable_pill_bg drawable and the same wallpaper-aware tint logic as
+ * ConversationTypingView's typing_count view), but as its own standalone floating indicator.
+ * The old bubble style is untouched - this is a fully separate, additive style.
  *
- * Two states:
- *  - present-only: "In chat", every letter doing the wave.
- *  - typing: "Typing" doing the same letter wave, followed by a separate un-animated suffix
- *    that cycles through . / .. / ... on a fixed timer - a discrete count change, not part of
- *    the continuous wave, so it's kept as its own TextView rather than forced into the same
- *    per-character animation loop as the word itself.
+ * Two states, deliberately different in kind, not just content:
+ *  - present-only: "In chat", a single static TextView, no animation at all - exact copy of
+ *    what bubble style already shows for this state.
+ *  - typing: "Typing" with a fade+scale wave walking left to right across its letters
+ *    (mirrors TypingIndicatorView's exact curve - same MIN_ALPHA/MIN_SCALE/duration - just
+ *    generalized from 3 fixed dots to N characters), followed by a separate un-animated
+ *    suffix that cycles . / .. / ... on a fixed timer.
  */
 public class PresenceWaveTextView extends LinearLayout {
 
-  private static final long  CHAR_STAGGER      = 80;   // ms between adjacent characters starting their pulse
-  private static final long  CHAR_DURATION     = 600;  // matches TypingIndicatorView's DOT_DURATION
-  private static final float MIN_ALPHA         = 0.4f;
-  private static final float MIN_SCALE         = 0.85f; // less aggressive than dots' 0.75f - full-size letters shrinking that much read as jumpy rather than a smooth wave
+  private static final long  CHAR_STAGGER       = 80;   // ms between adjacent characters starting their pulse
+  private static final long  CHAR_DURATION      = 600;  // matches TypingIndicatorView's DOT_DURATION
+  private static final float MIN_ALPHA          = 0.4f;
+  private static final float MIN_SCALE          = 0.85f; // less aggressive than dots' 0.75f - full-size letters shrinking that much read as jumpy rather than a smooth wave
   private static final long  DOT_COUNT_INTERVAL = 500;  // how long each of . / .. / ... shows before advancing
 
   private static final String PRESENT_TEXT = "In chat";
@@ -46,6 +45,7 @@ public class PresenceWaveTextView extends LinearLayout {
 
   private boolean isActive;
   private boolean isTyping;
+  private boolean hasWallpaper;
   private long    startTime;
   private long    charCycleDuration;
 
@@ -66,7 +66,30 @@ public class PresenceWaveTextView extends LinearLayout {
     setOrientation(HORIZONTAL);
     setGravity(Gravity.CENTER_VERTICAL);
     setWillNotDraw(false);
-    rebuild(PRESENT_TEXT);
+
+    setBackgroundResource(R.drawable.tintable_pill_bg);
+    int paddingH = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10, getResources().getDisplayMetrics());
+    int paddingV = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 6, getResources().getDisplayMetrics());
+    setPadding(paddingH, paddingV, paddingH, paddingV);
+    applyTint();
+
+    rebuild(false);
+  }
+
+  /** AJ fork: same wallpaper-aware tint logic as ConversationTypingView's typing_count pill. */
+  public void setHasWallpaper(boolean hasWallpaper) {
+    if (this.hasWallpaper == hasWallpaper) {
+      return;
+    }
+    this.hasWallpaper = hasWallpaper;
+    applyTint();
+  }
+
+  private void applyTint() {
+    int color = hasWallpaper
+        ? ContextCompat.getColor(getContext(), R.color.conversation_item_recv_bubble_color_wallpaper)
+        : ThemeUtil.getThemedColor(getContext(), R.attr.conversation_item_recv_bubble_color_normal);
+    getBackground().setColorFilter(color, PorterDuff.Mode.SRC_IN);
   }
 
   /** Rebuilds child views only when the state actually changes - avoids tearing down/recreating every render frame. */
@@ -75,25 +98,34 @@ public class PresenceWaveTextView extends LinearLayout {
       return;
     }
     this.isTyping = typing;
-    rebuild(typing ? TYPING_TEXT : PRESENT_TEXT);
+    rebuild(typing);
   }
 
-  private void rebuild(String text) {
+  private void rebuild(boolean typing) {
     removeAllViews();
     charViews.clear();
+    dotsView = null;
 
-    for (int i = 0; i < text.length(); i++) {
-      TextView charView = makeTextView(String.valueOf(text.charAt(i)));
+    if (!typing) {
+      // AJ fork: present-only - exact copy of bubble style's "In chat" treatment: one plain
+      // static TextView, no per-character split, no animation.
+      TextView staticText = makeTextView(PRESENT_TEXT);
+      addView(staticText);
+      charViews.add(staticText);
+      staticText.setAlpha(1f);
+      staticText.setScaleX(1f);
+      staticText.setScaleY(1f);
+      return;
+    }
+
+    for (int i = 0; i < TYPING_TEXT.length(); i++) {
+      TextView charView = makeTextView(String.valueOf(TYPING_TEXT.charAt(i)));
       addView(charView);
       charViews.add(charView);
     }
 
-    if (isTyping) {
-      dotsView = makeTextView("");
-      addView(dotsView);
-    } else {
-      dotsView = null;
-    }
+    dotsView = makeTextView("");
+    addView(dotsView);
 
     charCycleDuration = CHAR_STAGGER * Math.max(charViews.size() - 1, 0) + CHAR_DURATION;
   }
@@ -101,14 +133,14 @@ public class PresenceWaveTextView extends LinearLayout {
   private TextView makeTextView(String text) {
     TextView tv = new TextView(getContext());
     tv.setText(text);
-    tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-    tv.setTextColor(MaterialColors.getColor(this, R.attr.signal_text_secondary, Color.GRAY));
+    tv.setTextAppearance(R.style.TextAppearance_AppCompat_Body2);
+    tv.setTextColor(ThemeUtil.getThemedColor(getContext(), R.attr.signal_text_secondary));
     return tv;
   }
 
   @Override
   protected void onDraw(Canvas canvas) {
-    if (!isActive) {
+    if (!isActive || !isTyping) {
       super.onDraw(canvas);
       return;
     }
@@ -166,7 +198,11 @@ public class PresenceWaveTextView extends LinearLayout {
     charView.setScaleY(1 - (1 - MIN_SCALE) * percent);
   }
 
+  /** AJ fork: only meaningful during typing - present-only has nothing to animate. */
   public void startAnimation() {
+    if (!isTyping) {
+      return;
+    }
     isActive  = true;
     startTime = System.currentTimeMillis();
     postInvalidate();
@@ -176,7 +212,8 @@ public class PresenceWaveTextView extends LinearLayout {
     isActive = false;
   }
 
+  /** True only while the typing-state wave loop is actually running. */
   public boolean isActive() {
-    return isActive;
+    return isActive && isTyping;
   }
 }
