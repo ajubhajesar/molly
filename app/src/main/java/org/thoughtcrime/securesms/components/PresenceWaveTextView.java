@@ -133,7 +133,7 @@ public class PresenceWaveTextView extends LinearLayout {
   private TextView makeTextView(String text) {
     TextView tv = new TextView(getContext());
     tv.setText(text);
-    tv.setTextAppearance(R.style.TextAppearance_AppCompat_Body2);
+    tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
     tv.setTextColor(ThemeUtil.getThemedColor(getContext(), R.attr.signal_text_secondary));
     return tv;
   }
