@@ -1692,6 +1692,12 @@ class ConversationFragment :
     if (!shouldShow) {
       if (text.visibility == View.GONE) return // already hidden, nothing to do
 
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        0
+      )
       text.animate()
         .translationY(text.height.toFloat())
         .alpha(0f)
@@ -1715,6 +1721,13 @@ class ConversationFragment :
       text.translationY = 0f
       text.alpha = 1f
       text.visibility = View.VISIBLE
+      val pad = resources.getDimensionPixelSize(R.dimen.presence_cat_recycler_pad)
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        pad
+      )
     }
 
     text.setHasWallpaper(args.wallpaper != null)
