@@ -21,6 +21,7 @@ import org.thoughtcrime.securesms.BuildConfig;
 import org.thoughtcrime.securesms.components.TypingStatusRepository;
 import org.thoughtcrime.securesms.components.TypingStatusSender;
 import org.thoughtcrime.securesms.components.ActiveStatusSender;
+import org.thoughtcrime.securesms.components.LiveTypingCoordinator;
 import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.thoughtcrime.securesms.crypto.storage.SignalBaseIdentityKeyStore;
 import org.thoughtcrime.securesms.crypto.storage.SignalIdentityKeyStore;
@@ -315,6 +316,11 @@ public class ApplicationDependencyProvider implements AppDependencies.Provider {
   @Override
   public @NonNull ActiveStatusSender provideActiveStatusSender() {
     return new ActiveStatusSender();
+  }
+
+  @Override
+  public @NonNull LiveTypingCoordinator provideLiveTypingCoordinator() {
+    return new LiveTypingCoordinator();
   }
 
   @Override

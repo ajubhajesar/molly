@@ -620,6 +620,27 @@ open class MessageContentProcessor(private val context: Context) {
         Log.d(TAG, "Presence requested on thread $threadId")
         AppDependencies.activeStatusSender.onPresenceRequested(threadId)
       }
+      // AJ fork: live-typing consent handshake + draft-sharing. See LiveTypingCoordinator for
+      // the state machine - each of these is routed straight through to it.
+      TypingMessage.Action.LIVE_TEXT_REQUEST -> {
+        Log.d(TAG, "Live-typing REQUEST on thread $threadId")
+        AppDependencies.liveTypingCoordinator.onRequestReceived(threadId, senderRecipient)
+      }
+      TypingMessage.Action.LIVE_TEXT_ACCEPT -> {
+        Log.d(TAG, "Live-typing ACCEPT on thread $threadId")
+        AppDependencies.liveTypingCoordinator.onAcceptReceived(threadId, senderRecipient)
+      }
+      TypingMessage.Action.LIVE_TEXT_DECLINE -> {
+        Log.d(TAG, "Live-typing DECLINE on thread $threadId")
+        AppDependencies.liveTypingCoordinator.onDeclineReceived(threadId, senderRecipient)
+      }
+      TypingMessage.Action.LIVE_TEXT_STOP -> {
+        Log.d(TAG, "Live-typing STOP on thread $threadId")
+        AppDependencies.liveTypingCoordinator.onStopReceived(threadId, senderRecipient)
+      }
+      TypingMessage.Action.LIVE_TEXT_UPDATE -> {
+        AppDependencies.liveTypingCoordinator.onLiveTextReceived(threadId, senderRecipient, typingMessage.liveText ?: "")
+      }
       else -> {
         Log.w(TAG, "Unknown typing action on thread $threadId")
       }

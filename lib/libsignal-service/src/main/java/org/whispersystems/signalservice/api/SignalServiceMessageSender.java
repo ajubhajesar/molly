@@ -945,10 +945,19 @@ public class SignalServiceMessageSender {
     else if (message.isPresent())       builder.action(TypingMessage.Action.PRESENT);
     else if (message.isNotPresent())    builder.action(TypingMessage.Action.NOT_PRESENT);
     else if (message.isRequestPresence()) builder.action(TypingMessage.Action.REQUEST_PRESENCE);
+    else if (message.isLiveTextRequest()) builder.action(TypingMessage.Action.LIVE_TEXT_REQUEST);
+    else if (message.isLiveTextAccept())  builder.action(TypingMessage.Action.LIVE_TEXT_ACCEPT);
+    else if (message.isLiveTextDecline()) builder.action(TypingMessage.Action.LIVE_TEXT_DECLINE);
+    else if (message.isLiveTextStop())    builder.action(TypingMessage.Action.LIVE_TEXT_STOP);
+    else if (message.isLiveTextUpdate())  builder.action(TypingMessage.Action.LIVE_TEXT_UPDATE);
     else                                throw new IllegalArgumentException("Unknown typing indicator");
 
     if (message.getGroupId().isPresent()) {
       builder.groupId(ByteString.of(message.getGroupId().get()));
+    }
+
+    if (message.getLiveText().isPresent()) {
+      builder.liveText(message.getLiveText().get());
     }
 
     return container.typingMessage(builder.build()).build();

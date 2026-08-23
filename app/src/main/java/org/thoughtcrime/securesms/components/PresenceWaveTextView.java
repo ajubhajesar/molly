@@ -9,6 +9,7 @@ import android.view.Gravity;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
@@ -43,8 +44,14 @@ public class PresenceWaveTextView extends LinearLayout {
   private static final String PRESENT_TEXT = "In chat";
   private static final String TYPING_TEXT  = "Typing";
 
+  // AJ fork: live-typing preview truncation - keeps the pill from growing unbounded as the
+  // peer's draft gets longer, biased toward showing the most-recently-typed tail since that's
+  // what tells you where they currently are in the sentence.
+  private static final int MAX_LIVE_PREVIEW_CHARS = 80;
+
   private boolean isActive;
   private boolean isTyping;
+  private boolean isLive;
   private boolean hasWallpaper;
   private long    startTime;
   private long    charCycleDuration;
@@ -105,6 +112,7 @@ public class PresenceWaveTextView extends LinearLayout {
     removeAllViews();
     charViews.clear();
     dotsView = null;
+    isLive = false;
 
     if (!typing) {
       // AJ fork: present-only - exact copy of bubble style's "In chat" treatment: one plain
@@ -215,5 +223,36 @@ public class PresenceWaveTextView extends LinearLayout {
   /** True only while the typing-state wave loop is actually running. */
   public boolean isActive() {
     return isActive && isTyping;
+  }
+
+  /**
+   * AJ fork: live-typing style - renders the peer's actual draft buffer as it changes. No wave
+   * animation here on purpose: animating every keystroke reads as visual noise, not signal -
+   * the changing text itself is already the indicator. Truncates from the start of the string
+   * so the tail (the part they just typed) always stays visible.
+   */
+  public void showLiveText(@NonNull String liveText) {
+    isLive   = true;
+    isActive = false;
+
+    removeAllViews();
+    charViews.clear();
+    dotsView = null;
+
+    String display = liveText.isEmpty() ? "…" : liveText;
+    if (display.length() > MAX_LIVE_PREVIEW_CHARS) {
+      display = "…" + display.substring(display.length() - MAX_LIVE_PREVIEW_CHARS);
+    }
+
+    TextView staticText = makeTextView(display);
+    addView(staticText);
+    charViews.add(staticText);
+    staticText.setAlpha(1f);
+    staticText.setScaleX(1f);
+    staticText.setScaleY(1f);
+  }
+
+  public boolean isShowingLive() {
+    return isLive;
   }
 }

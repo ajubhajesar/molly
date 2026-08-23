@@ -6,17 +6,27 @@ import java.util.Optional;
 public class SignalServiceTypingMessage {
 
   public enum Action {
-    UNKNOWN, STARTED, STOPPED, PRESENT, NOT_PRESENT, REQUEST_PRESENCE
+    UNKNOWN, STARTED, STOPPED, PRESENT, NOT_PRESENT, REQUEST_PRESENCE,
+    // AJ fork: live-typing consent handshake + draft-sharing. See SignalService.proto for the
+    // full contract - REQUEST/ACCEPT/DECLINE/STOP are the handshake, UPDATE carries the text.
+    LIVE_TEXT_REQUEST, LIVE_TEXT_ACCEPT, LIVE_TEXT_DECLINE, LIVE_TEXT_STOP, LIVE_TEXT_UPDATE
   }
 
   private final Action           action;
   private final long             timestamp;
   private final Optional<byte[]> groupId;
+  private final Optional<String> liveText;
 
   public SignalServiceTypingMessage(Action action, long timestamp, Optional<byte[]> groupId) {
+    this(action, timestamp, groupId, Optional.empty());
+  }
+
+  /** AJ fork: overload carrying the live draft buffer, used only for LIVE_TEXT_UPDATE. */
+  public SignalServiceTypingMessage(Action action, long timestamp, Optional<byte[]> groupId, Optional<String> liveText) {
     this.action    = action;
     this.timestamp = timestamp;
     this.groupId   = groupId;
+    this.liveText  = liveText;
   }
 
   public Action getAction() {
@@ -29,6 +39,10 @@ public class SignalServiceTypingMessage {
 
   public Optional<byte[]> getGroupId() {
     return groupId;
+  }
+
+  public Optional<String> getLiveText() {
+    return liveText;
   }
 
   public boolean isTypingStarted() {
@@ -49,5 +63,25 @@ public class SignalServiceTypingMessage {
 
   public boolean isRequestPresence() {
     return action == Action.REQUEST_PRESENCE;
+  }
+
+  public boolean isLiveTextRequest() {
+    return action == Action.LIVE_TEXT_REQUEST;
+  }
+
+  public boolean isLiveTextAccept() {
+    return action == Action.LIVE_TEXT_ACCEPT;
+  }
+
+  public boolean isLiveTextDecline() {
+    return action == Action.LIVE_TEXT_DECLINE;
+  }
+
+  public boolean isLiveTextStop() {
+    return action == Action.LIVE_TEXT_STOP;
+  }
+
+  public boolean isLiveTextUpdate() {
+    return action == Action.LIVE_TEXT_UPDATE;
   }
 }

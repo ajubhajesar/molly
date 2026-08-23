@@ -53,6 +53,9 @@ class PrivacySettingsRepository {
 
     if (!enabled) {
       AppDependencies.typingStatusRepository.clear()
+      // AJ fork: live-typing rides the same wire signal and the same enable flag - clear its
+      // state too so no thread is left showing a stale live-typing session.
+      AppDependencies.liveTypingCoordinator.clear()
     }
   }
 }

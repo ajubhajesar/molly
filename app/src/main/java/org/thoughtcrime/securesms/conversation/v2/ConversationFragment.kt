@@ -658,17 +658,49 @@ class ConversationFragment :
 
     disposables.bindTo(viewLifecycleOwner)
 
-    // AJ fork: long-press the presence indicator to cycle cat -> lines -> bubble -> text -> cat.
-    // Only forces a live preview if the indicator was already visible (i.e. someone is
-    // genuinely present/typing right now) — never fakes presence when it's actually hidden.
-    // Attached to all four floating views since only one is visible at a time depending on
-    // style - whichever is showing must stay long-pressable so the cycle can always continue.
+    // AJ fork: long-press the presence indicator to cycle cat -> lines -> bubble -> text ->
+    // live -> cat. Only forces a live preview if the indicator was already visible (i.e.
+    // someone is genuinely present/typing right now) — never fakes presence when it's actually
+    // hidden. Attached to all four floating views since only one is visible at a time depending
+    // on style - whichever is showing must stay long-pressable so the cycle can always continue.
+    //
+    // Style 4 ("live") is different in kind from the other three: it exposes the peer's actual
+    // draft text, so cycling into it never flips the preference directly the way 0-3 do. It
+    // instead asks LiveTypingCoordinator to request consent; the preference only moves to 4
+    // once the peer has actually accepted (see the state observer in presentLiveTypingState()).
+    // Cycling *away* from an active/pending live session explicitly ends it - no silent leftover
+    // request or session on either side.
     val cyclePresenceStyleListener = View.OnLongClickListener {
       val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING ||
         linesUiState == LinesUiState.LOOPING || (binding.conversationBubbleIndicator as ConversationTypingView).isActive() ||
         binding.conversationTextIndicator.isActive
       val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
-      val next = (current + 1) % 4
+      val next = (current + 1) % 5
+
+      if (next == 4) {
+        when (AppDependencies.liveTypingCoordinator.currentState(args.threadId)) {
+          org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE -> {
+            styleBeforeLive = current
+            AppDependencies.liveTypingCoordinator.requestLiveTyping(args.threadId)
+            Toast.makeText(requireContext(), "Live typing requested — waiting for them to accept", Toast.LENGTH_SHORT).show()
+          }
+          org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE -> {
+            org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), 4)
+            Toast.makeText(requireContext(), "Presence: live style", Toast.LENGTH_SHORT).show()
+            if (lastPresenceActive) updatePresenceIndicator(wasTyping, true)
+          }
+          else -> {
+            Toast.makeText(requireContext(), "Live typing request already pending", Toast.LENGTH_SHORT).show()
+          }
+        }
+        return@OnLongClickListener true
+      }
+
+      if (current == 4) {
+        // Leaving live style - end whatever session or pending request is in flight.
+        AppDependencies.liveTypingCoordinator.stopLiveTyping(args.threadId)
+      }
+
       org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), next)
       val label = when (next) {
         1 -> "Presence: lines style"
@@ -1441,6 +1473,7 @@ class ConversationFragment :
       .addTo(disposables)
 
     presentTypingIndicator()
+    presentLiveTypingState()
 
     getVoiceNoteMediaController().finishPostpone()
 
@@ -1524,6 +1557,90 @@ class ConversationFragment :
   }
 
   /**
+   * AJ fork: drives the live-typing style's consent handshake and the incoming draft preview.
+   * Two independent observers:
+   *  - state: shows the consent popup on an incoming request, flips the style preference to 4
+   *    once both sides have actually agreed (never before), and reverts it back to whatever it
+   *    was before if the session ends for any reason (declined, stopped, timed out).
+   *  - live text: re-renders the peer's current draft whenever it changes, but only while style
+   *    4 is genuinely active - a stray/late update can never leak text onto a different style.
+   */
+  private fun presentLiveTypingState() {
+    val threadId = args.threadId
+    val coordinator = AppDependencies.liveTypingCoordinator
+
+    coordinator.getState(threadId).observe(viewLifecycleOwner) { state ->
+      val previous = lastLiveState
+      lastLiveState = state
+
+      when (state) {
+        org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.REQUESTED_BY_PEER -> {
+          if (previous != org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.REQUESTED_BY_PEER) {
+            showLiveTypingConsentDialog(threadId)
+          }
+        }
+
+        org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE -> {
+          if (org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext()) != 4) {
+            org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), 4)
+          }
+          if (previous != org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE) {
+            Toast.makeText(requireContext(), "Live typing is on — you can both see drafts before sending", Toast.LENGTH_LONG).show()
+          }
+          updatePresenceIndicator(lastIsTyping, lastIsPresent)
+        }
+
+        org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE -> {
+          val wasActiveOrPending = previous == org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE ||
+            previous == org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.REQUESTED_BY_ME
+          if (wasActiveOrPending && org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext()) == 4) {
+            org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), styleBeforeLive)
+            Toast.makeText(requireContext(), "Live typing turned off", Toast.LENGTH_SHORT).show()
+            updatePresenceIndicator(lastIsTyping, lastIsPresent)
+          }
+        }
+
+        org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.REQUESTED_BY_ME -> {
+          // Waiting on their answer - the requesting long-press already toasted this; nothing
+          // to render until it resolves to ACTIVE or back to NONE.
+        }
+      }
+    }
+
+    coordinator.getLiveText(threadId).observe(viewLifecycleOwner) { text ->
+      if (org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext()) == 4 &&
+        coordinator.currentState(threadId) == org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE &&
+        binding.conversationTextIndicator.visibility == View.VISIBLE
+      ) {
+        renderLiveContent(text)
+      }
+    }
+  }
+
+  /**
+   * AJ fork: the actual "both fully aware" moment for live typing - a peer's request never
+   * silently activates anything. Explicit accept/decline, spelled out in plain language about
+   * what accepting means (drafts visible before send), not just a style name.
+   */
+  private fun showLiveTypingConsentDialog(threadId: Long) {
+    if (!isAdded) return
+    val name = viewModel.recipientSnapshot?.getDisplayName(requireContext()) ?: "They"
+
+    MaterialAlertDialogBuilder(requireContext())
+      .setTitle("Live typing request")
+      .setMessage("$name wants to turn on live typing for this chat. If you accept, you'll both see what the other is typing before it's sent — including corrections and unsent drafts. Either of you can turn it off at any time.")
+      .setCancelable(false)
+      .setPositiveButton("Accept") { _, _ ->
+        styleBeforeLive = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
+        AppDependencies.liveTypingCoordinator.acceptLiveTyping(threadId)
+      }
+      .setNegativeButton("Decline") { _, _ ->
+        AppDependencies.liveTypingCoordinator.declineLiveTyping(threadId)
+      }
+      .show()
+  }
+
+  /**
    * AJ fork: drives the fixed-position cat indicator (above the input bar).
    * Sleep loop (0-410) = present, not typing. Wake transition (410-450) plays once
    * on typing start. Awake hold (450-479) loops while typing continues. Reverse of
@@ -1544,6 +1661,20 @@ class ConversationFragment :
   // currently visible (bubble style hides the floating Lottie view entirely, so its
   // visibility alone can't tell us whether someone is actually present).
   private var lastPresenceActive: Boolean = false
+  // AJ fork: the two components of lastPresenceActive tracked separately - needed so live style
+  // can be re-rendered accurately (e.g. right after a consent accept) without conflating "was
+  // typing" with "was present", the same distinction every other style already makes.
+  private var lastIsTyping: Boolean = false
+  private var lastIsPresent: Boolean = false
+
+  // AJ fork: live-typing style bookkeeping. styleBeforeLive is whatever style 0-3 was active
+  // right before a live-typing request went out or got accepted, so stopping/declining/timing
+  // out can restore it instead of leaving the preference stuck on 4 with nothing active behind
+  // it. lastLiveState lets the state observer tell "just arrived at this state" apart from
+  // "still in this state, LiveData just re-delivered its current value".
+  private var styleBeforeLive: Int = 0
+  private var lastLiveState: org.thoughtcrime.securesms.components.LiveTypingCoordinator.State =
+    org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE
 
   /**
    * AJ fork: dispatches to whichever presence indicator style is active.
@@ -1552,10 +1683,13 @@ class ConversationFragment :
    */
   private fun updatePresenceIndicator(isTyping: Boolean, isPresent: Boolean, typists: List<Recipient> = emptyList()) {
     lastPresenceActive = isTyping || isPresent
+    lastIsTyping = isTyping
+    lastIsPresent = isPresent
 
     val style = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
     val isBubble = style == 2
     val isText = style == 3
+    val isLive = style == 4
 
     // AJ fork: bubble style is a floating pinned view (conversationBubbleIndicator), same
     // fixed slot above the input bar as cat/lines - NOT a RecyclerView row anymore, so it
@@ -1564,6 +1698,17 @@ class ConversationFragment :
       collapseCatLines()
       collapseText()
       updatePresenceBubble(isTyping, isPresent, typists)
+      return
+    }
+
+    // AJ fork: live style - visibility here tracks the consent session itself (ACTIVE or not),
+    // not isTyping/isPresent - those describe the *other* three styles' own indicator sources,
+    // and a live session with nothing currently typed is still meaningfully "on": both sides
+    // agreed to it and either could see a draft the moment the other starts one.
+    if (isLive) {
+      collapseCatLines()
+      collapseBubble()
+      updatePresenceLive(isTyping, isPresent)
       return
     }
 
@@ -1737,6 +1882,93 @@ class ConversationFragment :
     // here is safe either way, it just won't do anything for the static "In chat" state.
     if (!text.isActive) {
       text.startAnimation()
+    }
+  }
+
+  /**
+   * AJ fork: live-typing style - same floating widget and slot as text style, but sourced from
+   * LiveTypingCoordinator instead of the ordinary typist list, and visible for the whole
+   * duration of an ACTIVE session rather than only during typing bursts. That's the "both fully
+   * aware" part of the design: the badge stays up the entire time drafts could be shared, not
+   * just while a keystroke is actively landing.
+   */
+  /**
+   * AJ fork: live-typing style - same floating widget, slot, and show/hide/padding treatment as
+   * text style (isText's updatePresenceText - deliberately copied, not reinvented, so it
+   * fades/pads identically to every other style instead of popping in or out). Content decision
+   * is the one real difference: which of "In chat" vs. the live draft to show is driven by
+   * whether there's actually a draft buffered (coordinator's live-text value), not by the
+   * STARTED/STOPPED typing signal - that signal has its own debounce and is about keystroke
+   * bursts, not about whether a draft still sits unsent. A paused-but-unsent draft should keep
+   * showing, not flicker back to "In chat" the moment the STOPPED debounce fires.
+   */
+  private fun updatePresenceLive(isTyping: Boolean, isPresent: Boolean) {
+    val text = binding.conversationTextIndicator
+    val threadId = args.threadId
+    val active = AppDependencies.liveTypingCoordinator.currentState(threadId) ==
+      org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE
+    val shouldShow = active && (isTyping || isPresent)
+
+    if (!shouldShow) {
+      if (text.visibility == View.GONE) return // already hidden, nothing to do
+
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        0
+      )
+      text.animate()
+        .translationY(text.height.toFloat())
+        .alpha(0f)
+        .setDuration(220)
+        .withEndAction {
+          // Re-check: presence may have returned during this 220ms fade.
+          if (!lastPresenceActive) {
+            text.stopAnimation()
+            text.visibility = View.GONE
+            text.translationY = 0f
+            text.alpha = 1f
+          }
+        }
+        .start()
+      return
+    }
+
+    val wasHidden = text.visibility != View.VISIBLE
+    if (wasHidden) {
+      text.animate().cancel()
+      text.translationY = 0f
+      text.alpha = 1f
+      text.visibility = View.VISIBLE
+      val pad = resources.getDimensionPixelSize(R.dimen.presence_cat_recycler_pad)
+      binding.conversationItemRecycler.setPadding(
+        binding.conversationItemRecycler.paddingLeft,
+        binding.conversationItemRecycler.paddingTop,
+        binding.conversationItemRecycler.paddingRight,
+        pad
+      )
+    }
+
+    text.setHasWallpaper(args.wallpaper != null)
+    renderLiveContent(AppDependencies.liveTypingCoordinator.getLiveText(threadId).value ?: "")
+  }
+
+  /**
+   * AJ fork: the actual content switch for live style - non-empty draft shows the draft,
+   * empty draft shows "In chat". Shared by updatePresenceLive() (called on real presence
+   * changes) and the live-text observer (called on every draft change) so both paths land on
+   * identical behavior instead of two slightly different copies drifting apart.
+   */
+  private fun renderLiveContent(liveText: String) {
+    val text = binding.conversationTextIndicator
+    if (liveText.isNotEmpty()) {
+      text.showLiveText(liveText)
+    } else {
+      text.setTyping(false)
+      if (!text.isActive) {
+        text.startAnimation()
+      }
     }
   }
 
@@ -2950,6 +3182,10 @@ class ConversationFragment :
       .doOnSubscribe {
         if (clearCompose) {
           AppDependencies.typingStatusSender.onTypingStopped(args.threadId)
+          // AJ fork: explicit empty-text send, not just relying on the typingStatusEnabled
+          // gate below to skip it - a sent message should always clear the peer's live preview
+          // immediately rather than leaving the last pre-send draft visible.
+          AppDependencies.liveTypingCoordinator.onLocalTextChanged(args.threadId, "")
           composeTextEventsListener?.typingStatusEnabled = false
           composeText.setText("")
           composeTextEventsListener?.typingStatusEnabled = true
@@ -5220,6 +5456,11 @@ class ConversationFragment :
       } else {
         typingStatusSender.onTypingStarted(args.threadId)
       }
+
+      // AJ fork: live-typing draft broadcast. Coordinator itself no-ops unless this thread's
+      // session is actually ACTIVE, and throttles/coalesces internally - safe to call on every
+      // keystroke without worrying about flooding the network here.
+      AppDependencies.liveTypingCoordinator.onLocalTextChanged(args.threadId, text)
 
       previousText = text
     }

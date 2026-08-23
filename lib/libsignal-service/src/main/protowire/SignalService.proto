@@ -472,11 +472,25 @@ message TypingMessage {
     // NOT_PRESENT can be silently dropped if the other was disconnected at that moment. This
     // closes that gap without a heartbeat: edge-triggered off a real reconnect, not a timer.
     REQUEST_PRESENCE = 4;
+    // AJ fork: live-typing consent handshake, independent of every action above. Requires
+    // explicit mutual opt-in per thread - neither side is ever placed into live-typing by the
+    // other's request alone. REQUEST asks, ACCEPT/DECLINE answers, STOP ends it from either
+    // side at any time (no re-request needed to turn it back off).
+    LIVE_TEXT_REQUEST = 5;
+    LIVE_TEXT_ACCEPT = 6;
+    LIVE_TEXT_DECLINE = 7;
+    LIVE_TEXT_STOP = 8;
+    // AJ fork: carries the live draft buffer itself once both sides are ACTIVE. Only ever
+    // sent after ACCEPT and before the next STOP - never as an unsolicited state.
+    LIVE_TEXT_UPDATE = 9;
   }
 
   optional uint64 timestamp = 1;
   optional Action action = 2;
   optional bytes groupId = 3;
+  // AJ fork: current draft buffer for LIVE_TEXT_UPDATE. Empty string clears the peer's
+  // preview (e.g. on send or on clearing the compose field) without needing a separate action.
+  optional string liveText = 4;
 }
 
 message StoryMessage {

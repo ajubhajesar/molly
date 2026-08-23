@@ -19,6 +19,7 @@ import org.thoughtcrime.securesms.BuildConfig
 import org.thoughtcrime.securesms.components.TypingStatusRepository
 import org.thoughtcrime.securesms.components.TypingStatusSender
 import org.thoughtcrime.securesms.components.ActiveStatusSender
+import org.thoughtcrime.securesms.components.LiveTypingCoordinator
 import org.thoughtcrime.securesms.crypto.storage.SignalServiceDataStoreImpl
 import org.thoughtcrime.securesms.database.DatabaseObserver
 import org.thoughtcrime.securesms.database.PendingRetryReceiptCache
@@ -163,6 +164,11 @@ object AppDependencies {
   @JvmStatic
   val activeStatusSender: ActiveStatusSender by lazy {
     provider.provideActiveStatusSender()
+  }
+
+  @JvmStatic
+  val liveTypingCoordinator: LiveTypingCoordinator by lazy {
+    provider.provideLiveTypingCoordinator()
   }
 
   @JvmStatic
@@ -449,6 +455,7 @@ object AppDependencies {
     fun provideTypingStatusRepository(): TypingStatusRepository
     fun provideActiveStatusSender(): ActiveStatusSender
     fun provideTypingStatusSender(): TypingStatusSender
+    fun provideLiveTypingCoordinator(): LiveTypingCoordinator
     fun provideDatabaseObserver(): DatabaseObserver
     fun provideSignalCallManager(): SignalCallManager
     fun providePendingRetryReceiptManager(): PendingRetryReceiptManager
