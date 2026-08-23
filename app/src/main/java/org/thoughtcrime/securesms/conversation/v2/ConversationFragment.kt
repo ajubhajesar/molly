@@ -658,60 +658,84 @@ class ConversationFragment :
 
     disposables.bindTo(viewLifecycleOwner)
 
-    // AJ fork: long-press the presence indicator to cycle cat -> lines -> bubble -> text ->
-    // live -> cat. Only forces a live preview if the indicator was already visible (i.e.
-    // someone is genuinely present/typing right now) — never fakes presence when it's actually
-    // hidden. Attached to all four floating views since only one is visible at a time depending
-    // on style - whichever is showing must stay long-pressable so the cycle can always continue.
+    // AJ fork: long-press the presence indicator to open a style picker (cat / bubble / text /
+    // live classic / live smooth) and jump straight to whichever one is chosen - no more
+    // stepping through a fixed forward-only order to reach a specific style, and no "lines"
+    // entry in the list (removed - unused; style code 1 stays retired, never offered again).
+    // Attached to all three floating views since only one is visible at a time depending on
+    // style - whichever is showing must stay long-pressable so the picker is always reachable.
     //
-    // Style 4 ("live") is different in kind from the other three: it exposes the peer's actual
-    // draft text, so cycling into it never flips the preference directly the way 0-3 do. It
-    // instead asks LiveTypingCoordinator to request consent; the preference only moves to 4
-    // once the peer has actually accepted (see the state observer in presentLiveTypingState()).
-    // Cycling *away* from an active/pending live session explicitly ends it - no silent leftover
-    // request or session on either side.
-    val cyclePresenceStyleListener = View.OnLongClickListener {
+    // Live styles (4 classic, 5 smooth) still route through LiveTypingCoordinator for mutual
+    // consent exactly as before - picking either one when nothing is active sends a request and
+    // waits; picking one while ACTIVE is a free local render switch, no re-request, since both
+    // are the same consented session, just two independent render paths (4 untouched/original,
+    // 5 rewritten for smoothness). Picking any non-live style while a live session is active or
+    // pending ends it - no silent leftover request on either side.
+    fun showPresenceStylePicker(anchor: View) {
       val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING ||
-        linesUiState == LinesUiState.LOOPING || (binding.conversationBubbleIndicator as ConversationTypingView).isActive() ||
+        (binding.conversationBubbleIndicator as ConversationTypingView).isActive() ||
         binding.conversationTextIndicator.isActive
       val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
-      val next = (current + 1) % 5
 
-      if (next == 4) {
-        when (AppDependencies.liveTypingCoordinator.currentState(args.threadId)) {
-          org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE -> {
-            styleBeforeLive = current
-            AppDependencies.liveTypingCoordinator.requestLiveTyping(args.threadId)
-            Toast.makeText(requireContext(), "Live typing requested — waiting for them to accept", Toast.LENGTH_SHORT).show()
+      fun label(id: Int, name: String) = if (id == current) "$name ✓" else name
+
+      val popup = android.widget.PopupMenu(requireContext(), anchor)
+      popup.menu.add(0, 0, 0, label(0, "Cat"))
+      popup.menu.add(0, 2, 1, label(2, "Bubble"))
+      popup.menu.add(0, 3, 2, label(3, "Text"))
+      popup.menu.add(0, 4, 3, label(4, "Live (classic)"))
+      popup.menu.add(0, 5, 4, label(5, "Live (smooth)"))
+
+      popup.setOnMenuItemClickListener { item ->
+        val target = item.itemId
+        if (target == current) return@setOnMenuItemClickListener true
+
+        if (target == 4 || target == 5) {
+          val variantLabel = if (target == 5) "smooth" else "classic"
+          when (AppDependencies.liveTypingCoordinator.currentState(args.threadId)) {
+            org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE -> {
+              styleBeforeLive = current
+              pendingLiveStyle = target
+              AppDependencies.liveTypingCoordinator.requestLiveTyping(args.threadId)
+              Toast.makeText(requireContext(), "Live typing ($variantLabel) requested — waiting for them to accept", Toast.LENGTH_SHORT).show()
+            }
+            org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE -> {
+              // Already consented - switching render variant is purely local, no new request.
+              pendingLiveStyle = target
+              org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), target)
+              Toast.makeText(requireContext(), "Presence: live style ($variantLabel)", Toast.LENGTH_SHORT).show()
+              if (lastPresenceActive) updatePresenceIndicator(wasTyping, true)
+            }
+            else -> {
+              Toast.makeText(requireContext(), "Live typing request already pending", Toast.LENGTH_SHORT).show()
+            }
           }
-          org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE -> {
-            org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), 4)
-            Toast.makeText(requireContext(), "Presence: live style", Toast.LENGTH_SHORT).show()
-            if (lastPresenceActive) updatePresenceIndicator(wasTyping, true)
-          }
-          else -> {
-            Toast.makeText(requireContext(), "Live typing request already pending", Toast.LENGTH_SHORT).show()
-          }
+          return@setOnMenuItemClickListener true
         }
-        return@OnLongClickListener true
+
+        if (current == 4 || current == 5) {
+          // Leaving live style - end whatever session or pending request is in flight.
+          AppDependencies.liveTypingCoordinator.stopLiveTyping(args.threadId)
+        }
+
+        org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), target)
+        val label = when (target) {
+          2 -> "Presence: bubble style"
+          3 -> "Presence: text style"
+          else -> "Presence: cat style"
+        }
+        Toast.makeText(requireContext(), label, Toast.LENGTH_SHORT).show()
+        if (lastPresenceActive) {
+          updatePresenceIndicator(wasTyping, true)
+        }
+        true
       }
 
-      if (current == 4) {
-        // Leaving live style - end whatever session or pending request is in flight.
-        AppDependencies.liveTypingCoordinator.stopLiveTyping(args.threadId)
-      }
+      popup.show()
+    }
 
-      org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), next)
-      val label = when (next) {
-        1 -> "Presence: lines style"
-        2 -> "Presence: bubble style"
-        3 -> "Presence: text style"
-        else -> "Presence: cat style"
-      }
-      Toast.makeText(requireContext(), label, Toast.LENGTH_SHORT).show()
-      if (lastPresenceActive) {
-        updatePresenceIndicator(wasTyping, true)
-      }
+    val cyclePresenceStyleListener = View.OnLongClickListener { view ->
+      showPresenceStylePicker(view)
       true
     }
     binding.conversationPresenceIndicator.setOnLongClickListener(cyclePresenceStyleListener)
@@ -1559,11 +1583,12 @@ class ConversationFragment :
   /**
    * AJ fork: drives the live-typing style's consent handshake and the incoming draft preview.
    * Two independent observers:
-   *  - state: shows the consent popup on an incoming request, flips the style preference to 4
-   *    once both sides have actually agreed (never before), and reverts it back to whatever it
-   *    was before if the session ends for any reason (declined, stopped, timed out).
-   *  - live text: re-renders the peer's current draft whenever it changes, but only while style
-   *    4 is genuinely active - a stray/late update can never leak text onto a different style.
+   *  - state: shows the consent popup on an incoming request, flips the style preference to
+   *    pendingLiveStyle (4 or 5, whichever variant this device is on) once both sides have
+   *    actually agreed (never before), and reverts it back to whatever it was before if the
+   *    session ends for any reason (declined, stopped, timed out).
+   *  - live text: re-renders the peer's current draft whenever it changes, but only while a live
+   *    style is genuinely active - a stray/late update can never leak text onto a different style.
    */
   private fun presentLiveTypingState() {
     val threadId = args.threadId
@@ -1581,8 +1606,9 @@ class ConversationFragment :
         }
 
         org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE -> {
-          if (org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext()) != 4) {
-            org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), 4)
+          val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
+          if (current != 4 && current != 5) {
+            org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), pendingLiveStyle)
           }
           if (previous != org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE) {
             Toast.makeText(requireContext(), "Live typing is on — you can both see drafts before sending", Toast.LENGTH_LONG).show()
@@ -1593,7 +1619,8 @@ class ConversationFragment :
         org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE -> {
           val wasActiveOrPending = previous == org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE ||
             previous == org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.REQUESTED_BY_ME
-          if (wasActiveOrPending && org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext()) == 4) {
+          val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
+          if (wasActiveOrPending && (current == 4 || current == 5)) {
             org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), styleBeforeLive)
             Toast.makeText(requireContext(), "Live typing turned off", Toast.LENGTH_SHORT).show()
             updatePresenceIndicator(lastIsTyping, lastIsPresent)
@@ -1608,11 +1635,12 @@ class ConversationFragment :
     }
 
     coordinator.getLiveText(threadId).observe(viewLifecycleOwner) { text ->
-      if (org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext()) == 4 &&
+      val style = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
+      if ((style == 4 || style == 5) &&
         coordinator.currentState(threadId) == org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE &&
         binding.conversationTextIndicator.visibility == View.VISIBLE
       ) {
-        renderLiveContent(text)
+        renderLiveContent(text, style == 5)
       }
     }
   }
@@ -1654,8 +1682,7 @@ class ConversationFragment :
   private var catUiState: CatUiState = CatUiState.HIDDEN
 
   // AJ fork: lines-style presence indicator (alternative to cat, toggled via long-press)
-  private enum class LinesUiState { HIDDEN, PAUSED, LOOPING }
-  private var linesUiState: LinesUiState = LinesUiState.HIDDEN
+  // (LinesUiState removed along with lines style - see the presence-style picker for why)
   private var presenceIndicatorLoadedRaw: Int = -1
   // AJ fork: last isTyping||isPresent seen, tracked independent of which style's view is
   // currently visible (bubble style hides the floating Lottie view entirely, so its
@@ -1669,12 +1696,20 @@ class ConversationFragment :
 
   // AJ fork: live-typing style bookkeeping. styleBeforeLive is whatever style 0-3 was active
   // right before a live-typing request went out or got accepted, so stopping/declining/timing
-  // out can restore it instead of leaving the preference stuck on 4 with nothing active behind
-  // it. lastLiveState lets the state observer tell "just arrived at this state" apart from
-  // "still in this state, LiveData just re-delivered its current value".
+  // out can restore it instead of leaving the preference stuck on a live style with nothing
+  // active behind it. lastLiveState lets the state observer tell "just arrived at this state"
+  // apart from "still in this state, LiveData just re-delivered its current value".
   private var styleBeforeLive: Int = 0
   private var lastLiveState: org.thoughtcrime.securesms.components.LiveTypingCoordinator.State =
     org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE
+
+  // AJ fork: which of the two live render variants (4 classic / 5 smooth) the ACTIVE state
+  // observer should flip the preference to once a session resolves. Set explicitly whenever
+  // *this* device requests or re-picks a variant by cycling into 4 or 5. Defaults to 5 - the
+  // smooth path is the intended one - so accepting an incoming request (which never specifies
+  // a variant; that choice is always local, same as every other style) lands there without
+  // needing to have touched the cycle first. Falling back to 4 is always one long-press away.
+  private var pendingLiveStyle: Int = 5
 
   /**
    * AJ fork: dispatches to whichever presence indicator style is active.
@@ -1689,7 +1724,7 @@ class ConversationFragment :
     val style = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
     val isBubble = style == 2
     val isText = style == 3
-    val isLive = style == 4
+    val isLive = style == 4 || style == 5
 
     // AJ fork: bubble style is a floating pinned view (conversationBubbleIndicator), same
     // fixed slot above the input bar as cat/lines - NOT a RecyclerView row anymore, so it
@@ -1701,14 +1736,15 @@ class ConversationFragment :
       return
     }
 
-    // AJ fork: live style - visibility here tracks the consent session itself (ACTIVE or not),
-    // not isTyping/isPresent - those describe the *other* three styles' own indicator sources,
-    // and a live session with nothing currently typed is still meaningfully "on": both sides
-    // agreed to it and either could see a draft the moment the other starts one.
+    // AJ fork: live style (4 classic or 5 smooth - same gating, different render path below) -
+    // visibility here tracks the consent session itself (ACTIVE or not), not isTyping/isPresent
+    // alone - those describe the *other* three styles' own indicator sources, and a live session
+    // with nothing currently typed is still meaningfully "on": both sides agreed to it and either
+    // could see a draft the moment the other starts one.
     if (isLive) {
       collapseCatLines()
       collapseBubble()
-      updatePresenceLive(isTyping, isPresent)
+      updatePresenceLive(isTyping, isPresent, style == 5)
       return
     }
 
@@ -1720,20 +1756,17 @@ class ConversationFragment :
       return
     }
 
-    // Not bubble, not text - cat/lines path. Make sure both of those are collapsed.
+    // Not bubble, not text - the cat floating Lottie view. Make sure the others are collapsed.
     collapseBubble()
     collapseText()
 
-    val useLines = style == 1
-    val wantRaw = if (useLines) R.raw.presence_lines_indicator else R.raw.presence_cat_indicator
     val cat = binding.conversationPresenceIndicator
-    if (presenceIndicatorLoadedRaw != wantRaw) {
-      // Style changed — stop whatever was running, swap the Lottie source, reset both state machines.
+    if (presenceIndicatorLoadedRaw != R.raw.presence_cat_indicator) {
+      // Style changed — stop whatever was running, swap the Lottie source, reset state.
       cat.cancelAnimation()
-      cat.setAnimation(wantRaw)
-      presenceIndicatorLoadedRaw = wantRaw
+      cat.setAnimation(R.raw.presence_cat_indicator)
+      presenceIndicatorLoadedRaw = R.raw.presence_cat_indicator
       catUiState = CatUiState.HIDDEN
-      linesUiState = LinesUiState.HIDDEN
       cat.visibility = View.GONE
       cat.alpha = 1f
       cat.translationY = 0f
@@ -1742,37 +1775,23 @@ class ConversationFragment :
       val dm = resources.displayMetrics
       fun dp(v: Int) = (v * dm.density).toInt()
 
-      if (useLines) {
-        // Lines: stretch full screen width, centerCrop preserves waveform shape without distortion
-        params.width = 0 // 0 = match constraints
-        params.height = dp(36)
-        params.marginStart = 0
-        params.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
-        cat.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
-        cat.addValueCallback(
-          KeyPath("**"),
-          LottieProperty.STROKE_COLOR,
-          com.airbnb.lottie.value.LottieValueCallback<Int>(android.graphics.Color.WHITE)
-        )
-      } else {
-        // Cat: restore original 67×36dp, start-only constrained, 12dp margin
-        params.width = dp(67)
-        params.height = dp(36)
-        params.marginStart = dp(12)
-        params.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-        cat.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-        cat.addValueCallback(
-          KeyPath("**"),
-          LottieProperty.STROKE_COLOR,
-          null as com.airbnb.lottie.value.LottieValueCallback<Int>?
-        )
-      }
+      // Cat: original 67×36dp, start-only constrained, 12dp margin
+      params.width = dp(67)
+      params.height = dp(36)
+      params.marginStart = dp(12)
+      params.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+      cat.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+      cat.addValueCallback(
+        KeyPath("**"),
+        LottieProperty.STROKE_COLOR,
+        null as com.airbnb.lottie.value.LottieValueCallback<Int>?
+      )
       cat.layoutParams = params
     }
-    if (useLines) updatePresenceLines(isTyping, isPresent) else updatePresenceCat(isTyping, isPresent)
+    updatePresenceCat(isTyping, isPresent)
   }
 
-  /** AJ fork: collapses the cat/lines floating Lottie view immediately, no fade. */
+  /** AJ fork: collapses the cat floating Lottie view immediately, no fade. */
   private fun collapseCatLines() {
     if (presenceIndicatorLoadedRaw == -1) return
     val cat = binding.conversationPresenceIndicator
@@ -1782,7 +1801,6 @@ class ConversationFragment :
     cat.translationY = 0f
     cat.alpha = 1f
     catUiState = CatUiState.HIDDEN
-    linesUiState = LinesUiState.HIDDEN
     presenceIndicatorLoadedRaw = -1
     binding.conversationItemRecycler.setPadding(
       binding.conversationItemRecycler.paddingLeft,
@@ -1901,8 +1919,12 @@ class ConversationFragment :
    * STARTED/STOPPED typing signal - that signal has its own debounce and is about keystroke
    * bursts, not about whether a draft still sits unsent. A paused-but-unsent draft should keep
    * showing, not flicker back to "In chat" the moment the STOPPED debounce fires.
+   *
+   * smooth selects which of the two render paths handles a non-empty draft (see
+   * renderLiveContent()) - show/hide/padding here is identical either way, on purpose, so a bug
+   * in one render path can't also be a bug in how the pill itself appears/disappears.
    */
-  private fun updatePresenceLive(isTyping: Boolean, isPresent: Boolean) {
+  private fun updatePresenceLive(isTyping: Boolean, isPresent: Boolean, smooth: Boolean) {
     val text = binding.conversationTextIndicator
     val threadId = args.threadId
     val active = AppDependencies.liveTypingCoordinator.currentState(threadId) ==
@@ -1951,19 +1973,21 @@ class ConversationFragment :
     }
 
     text.setHasWallpaper(args.wallpaper != null)
-    renderLiveContent(AppDependencies.liveTypingCoordinator.getLiveText(threadId).value ?: "")
+    renderLiveContent(AppDependencies.liveTypingCoordinator.getLiveText(threadId).value ?: "", smooth)
   }
 
   /**
    * AJ fork: the actual content switch for live style - non-empty draft shows the draft,
    * empty draft shows "In chat". Shared by updatePresenceLive() (called on real presence
    * changes) and the live-text observer (called on every draft change) so both paths land on
-   * identical behavior instead of two slightly different copies drifting apart.
+   * identical behavior instead of two slightly different copies drifting apart. smooth==true
+   * calls PresenceWaveTextView's rewritten render path (style 5); smooth==false calls the
+   * original, unmodified one (style 4) - see PresenceWaveTextView for why they're kept separate.
    */
-  private fun renderLiveContent(liveText: String) {
+  private fun renderLiveContent(liveText: String, smooth: Boolean) {
     val text = binding.conversationTextIndicator
     if (liveText.isNotEmpty()) {
-      text.showLiveText(liveText)
+      if (smooth) text.showLiveTextSmooth(liveText) else text.showLiveText(liveText)
     } else {
       text.setTyping(false)
       if (!text.isActive) {
@@ -2030,73 +2054,6 @@ class ConversationFragment :
       args.wallpaper != null,
       isPresent && !isTyping
     )
-  }
-
-  /**
-   * Lines indicator: a single continuous flowing-line loop.
-   * TYPING        -> loop continuously
-   * PRESENT only  -> pause (freeze on current frame, NOT reset to 0) — "lines stopped" look
-   * neither       -> fade out / slide down, same as cat's hide animation
-   */
-  private fun updatePresenceLines(isTyping: Boolean, isPresent: Boolean) {
-    val cat = binding.conversationPresenceIndicator
-    val shouldShow = isTyping || isPresent
-
-    if (!shouldShow) {
-      if (linesUiState == LinesUiState.HIDDEN) return
-      linesUiState = LinesUiState.HIDDEN
-      cat.animate().cancel()
-      cat.pauseAnimation() // freeze in place, do NOT reset frame to 0
-      binding.conversationItemRecycler.setPadding(
-        binding.conversationItemRecycler.paddingLeft,
-        binding.conversationItemRecycler.paddingTop,
-        binding.conversationItemRecycler.paddingRight,
-        0
-      )
-      cat.animate()
-        .translationY(cat.height.toFloat())
-        .alpha(0f)
-        .setDuration(220)
-        .withEndAction {
-          if (linesUiState == LinesUiState.HIDDEN) {
-            cat.cancelAnimation()
-            cat.visibility = View.GONE
-            cat.translationY = 0f
-            cat.alpha = 1f
-          }
-        }
-        .start()
-      return
-    }
-
-    val wasHidden = linesUiState == LinesUiState.HIDDEN
-    if (wasHidden) {
-      cat.animate().cancel()
-      cat.translationY = 0f
-      cat.alpha = 1f
-      cat.visibility = View.VISIBLE
-      val catPad = resources.getDimensionPixelSize(R.dimen.presence_cat_recycler_pad)
-      binding.conversationItemRecycler.setPadding(
-        binding.conversationItemRecycler.paddingLeft,
-        binding.conversationItemRecycler.paddingTop,
-        binding.conversationItemRecycler.paddingRight,
-        catPad
-      )
-    }
-
-    if (isTyping) {
-      if (linesUiState == LinesUiState.LOOPING) return // already looping, duplicate emission
-      linesUiState = LinesUiState.LOOPING
-      cat.speed = 1f
-      cat.repeatMode = com.airbnb.lottie.LottieDrawable.RESTART
-      cat.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
-      if (wasHidden) cat.frame = 0
-      cat.playAnimation()
-    } else {
-      if (linesUiState == LinesUiState.PAUSED && !wasHidden) return // already paused, duplicate emission
-      linesUiState = LinesUiState.PAUSED
-      cat.pauseAnimation() // freeze wherever it currently is — "lines stopped"
-    }
   }
 
   private fun updatePresenceCat(isTyping: Boolean, isPresent: Boolean) {

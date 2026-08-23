@@ -3,6 +3,7 @@ package org.thoughtcrime.securesms.components;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -52,6 +53,12 @@ public class PresenceWaveTextView extends LinearLayout {
   private boolean isActive;
   private boolean isTyping;
   private boolean isLive;
+  // AJ fork: style index 5 (the 6th style, "live - smooth") - deliberately separate
+  // fields/flag/view from the style-4 live path above. Nothing in showLiveText() or isLive is
+  // touched by this - if the smooth path has a bug, switching back to style 4 exercises code
+  // this change never modified.
+  private boolean isSmoothLive;
+  private TextView smoothLiveTextView;
   private boolean hasWallpaper;
   private long    startTime;
   private long    charCycleDuration;
@@ -113,6 +120,7 @@ public class PresenceWaveTextView extends LinearLayout {
     charViews.clear();
     dotsView = null;
     isLive = false;
+    isSmoothLive = false;
 
     if (!typing) {
       // AJ fork: present-only - exact copy of bubble style's "In chat" treatment: one plain
@@ -253,6 +261,46 @@ public class PresenceWaveTextView extends LinearLayout {
   }
 
   public boolean isShowingLive() {
-    return isLive;
+    return isLive || isSmoothLive;
+  }
+
+  /**
+   * AJ fork: style index 5 ("live - smooth"). Same idea as showLiveText() - render the peer's
+   * draft, no wave animation - but fixes the two things that made the style-4 version stutter:
+   *  - reuses one TextView across every update (setText() only) instead of removeAllViews() +
+   *    a new TextView every call, so there's no pop/flicker from view teardown mid-typing.
+   *  - truncation is native TextView ellipsize(START) against a pixel maxWidth, not a manual
+   *    char-count substring recomputed every call - the visible window shifts continuously as
+   *    Android lays it out, instead of jumping because our own index math changed.
+   * The mode-entry fade (switching in from "In chat" or from hidden) is the one animation added
+   * here - deliberately not fading on every single keystroke update, since a fade cycling every
+   * ~200ms would read as more flicker, not less. The text changing is already the signal.
+   */
+  public void showLiveTextSmooth(@NonNull String liveText) {
+    if (!isSmoothLive) {
+      isActive     = false;
+      isLive       = false;
+      removeAllViews();
+      charViews.clear();
+      dotsView     = null;
+      isSmoothLive = true;
+
+      if (smoothLiveTextView == null) {
+        smoothLiveTextView = makeTextView("");
+        smoothLiveTextView.setSingleLine(true);
+        smoothLiveTextView.setEllipsize(TextUtils.TruncateAt.START);
+        int maxWidthPx = getResources().getDimensionPixelSize(R.dimen.media_bubble_max_width);
+        smoothLiveTextView.setMaxWidth(maxWidthPx);
+      }
+
+      addView(smoothLiveTextView);
+      smoothLiveTextView.setScaleX(1f);
+      smoothLiveTextView.setScaleY(1f);
+      smoothLiveTextView.animate().cancel();
+      smoothLiveTextView.setAlpha(0f);
+      smoothLiveTextView.animate().alpha(1f).setDuration(150).start();
+    }
+
+    smoothLiveTextView.setText(liveText);
   }
 }
