@@ -8,8 +8,10 @@ public class SignalServiceTypingMessage {
   public enum Action {
     UNKNOWN, STARTED, STOPPED, PRESENT, NOT_PRESENT, REQUEST_PRESENCE,
     // AJ fork: live-typing consent handshake + draft-sharing. See SignalService.proto for the
-    // full contract - REQUEST/ACCEPT/DECLINE/STOP are the handshake, UPDATE carries the text.
-    LIVE_TEXT_REQUEST, LIVE_TEXT_ACCEPT, LIVE_TEXT_DECLINE, LIVE_TEXT_STOP, LIVE_TEXT_UPDATE
+    // full contract - REQUEST/ACCEPT/DECLINE/STOP are the handshake, UPDATE carries the text,
+    // RESYNC_REQUEST/RESYNC_ACTIVE/RESYNC_NONE recover a dropped ACCEPT/STOP after a reconnect.
+    LIVE_TEXT_REQUEST, LIVE_TEXT_ACCEPT, LIVE_TEXT_DECLINE, LIVE_TEXT_STOP, LIVE_TEXT_UPDATE,
+    LIVE_TEXT_RESYNC_REQUEST, LIVE_TEXT_RESYNC_ACTIVE, LIVE_TEXT_RESYNC_NONE
   }
 
   private final Action           action;
@@ -83,5 +85,17 @@ public class SignalServiceTypingMessage {
 
   public boolean isLiveTextUpdate() {
     return action == Action.LIVE_TEXT_UPDATE;
+  }
+
+  public boolean isLiveTextResyncRequest() {
+    return action == Action.LIVE_TEXT_RESYNC_REQUEST;
+  }
+
+  public boolean isLiveTextResyncActive() {
+    return action == Action.LIVE_TEXT_RESYNC_ACTIVE;
+  }
+
+  public boolean isLiveTextResyncNone() {
+    return action == Action.LIVE_TEXT_RESYNC_NONE;
   }
 }

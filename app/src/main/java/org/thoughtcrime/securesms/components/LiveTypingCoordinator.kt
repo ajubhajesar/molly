@@ -6,6 +6,7 @@ import org.signal.core.util.ThreadUtil
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.jobs.LiveTypingControlSendJob
+import org.thoughtcrime.securesms.jobs.LiveTypingResyncSendJob
 import org.thoughtcrime.securesms.jobs.LiveTypingTextSendJob
 import org.thoughtcrime.securesms.recipients.Recipient
 import java.util.concurrent.TimeUnit
@@ -221,6 +222,76 @@ class LiveTypingCoordinator {
     val text = pendingLocalText[threadId] ?: ""
     lastSendTime[threadId] = System.currentTimeMillis()
     AppDependencies.jobManager.add(LiveTypingTextSendJob(threadId, text))
+  }
+
+  // ---- resync - recovering a dropped signal after a reconnect, never a new consent event ----
+
+  /**
+   * This device's own connection just came back. ACCEPT/STOP ride the same un-queued wire
+   * message type as everything else here, so either can be silently lost if the peer (or this
+   * device) was disconnected at the exact moment it was sent - the same gap ActiveStatusSender
+   * closes for PRESENT/NOT_PRESENT. Only ACTIVE threads need this: a pending REQUESTED_BY_ME/
+   * REQUESTED_BY_PEER already self-heals via its own 10s timeout, but ACTIVE has no timeout and
+   * can otherwise stay silently stuck (locally, or on the peer's end) until someone manually
+   * leaves and re-requests.
+   */
+  @Synchronized
+  fun onConnectionRestored() {
+    val activeThreads = states.filterValues { it == State.ACTIVE }.keys
+    for (threadId in activeThreads) {
+      Log.i(TAG, "Connection restored - resyncing live-typing state for thread $threadId.")
+      AppDependencies.jobManager.add(LiveTypingResyncSendJob(threadId, LiveTypingResyncSendJob.ResyncMessage.REQUEST))
+    }
+  }
+
+  /**
+   * A peer asked what this device believes for [threadId]. Always reply with the truth, whichever
+   * way it goes - if the peer's stale belief is the wrong one, silence would leave it uncorrected,
+   * same reasoning as ActiveStatusSender.onPresenceRequested().
+   */
+  @Synchronized
+  fun onResyncRequested(threadId: Long, author: Recipient) {
+    if (author.isSelf) return
+    val reply = if (currentState(threadId) == State.ACTIVE) {
+      LiveTypingResyncSendJob.ResyncMessage.ACTIVE
+    } else {
+      LiveTypingResyncSendJob.ResyncMessage.NONE
+    }
+    AppDependencies.jobManager.add(LiveTypingResyncSendJob(threadId, reply))
+  }
+
+  /**
+   * Peer's authoritative answer: they believe [threadId] is ACTIVE. Reconciled silently, no
+   * popup - this is recovering a dropped signal from a consent already given once, not asking
+   * for new consent. Only acts from NONE: if a REQUESTED_BY_PEER decision is genuinely pending
+   * right now, a resync reply can't quietly pre-empt what the user is actively being asked.
+   */
+  @Synchronized
+  fun onResyncActiveReceived(threadId: Long, author: Recipient) {
+    if (author.isSelf) return
+    if (currentState(threadId) == State.NONE) {
+      Log.i(TAG, "Resync: peer says thread $threadId is ACTIVE, we'd lost that - reconciling.")
+      setState(threadId, State.ACTIVE)
+    }
+  }
+
+  /**
+   * Peer's authoritative answer: they believe [threadId] is NOT active. Reconciled silently, same
+   * reasoning as above - only acts if this side currently disagrees (still ACTIVE, or still
+   * waiting on an answer that, per this reply, is never coming).
+   */
+  @Synchronized
+  fun onResyncNoneReceived(threadId: Long, author: Recipient) {
+    if (author.isSelf) return
+    val current = currentState(threadId)
+    if (current == State.ACTIVE || current == State.REQUESTED_BY_ME) {
+      Log.i(TAG, "Resync: peer says thread $threadId is NOT active, we disagreed - reconciling.")
+      requestTimeouts.remove(threadId)?.let { ThreadUtil.cancelRunnableOnMain(it) }
+      throttleRunnables.remove(threadId)?.let { ThreadUtil.cancelRunnableOnMain(it) }
+      pendingLocalText.remove(threadId)
+      setState(threadId, State.NONE)
+      liveTextNotifiers[threadId]?.postValue("")
+    }
   }
 
   @Synchronized

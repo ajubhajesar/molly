@@ -70,6 +70,9 @@ class ActiveStatusSender {
     Log.i(TAG, "Connection restored while thread $threadId is open - resyncing active status.")
     AppDependencies.jobManager.add(ActiveStatusSendJob(threadId, true))
     AppDependencies.jobManager.add(RequestPresenceSendJob(threadId))
+    // AJ fork: same reconnect moment, same reasoning - resync any live-typing session this
+    // device still believes is ACTIVE, in case the last ACCEPT/STOP got silently dropped.
+    AppDependencies.liveTypingCoordinator.onConnectionRestored()
   }
 
   /**

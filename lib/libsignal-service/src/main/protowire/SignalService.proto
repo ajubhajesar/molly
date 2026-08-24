@@ -483,6 +483,15 @@ message TypingMessage {
     // AJ fork: carries the live draft buffer itself once both sides are ACTIVE. Only ever
     // sent after ACCEPT and before the next STOP - never as an unsolicited state.
     LIVE_TEXT_UPDATE = 9;
+    // AJ fork: resync trio, same reasoning as REQUEST_PRESENCE above - live-typing rides the
+    // same un-queued wire message type, so an ACCEPT or STOP sent while either side was
+    // disconnected can be silently lost, leaving one side stuck believing a session is live
+    // (or dead) when the other has already moved on. REQUEST asks "what do you currently
+    // believe for this thread"; ACTIVE/NONE is the truthful, unconditional answer - never a
+    // new consent event, just correcting a dropped signal from a consent already given once.
+    LIVE_TEXT_RESYNC_REQUEST = 10;
+    LIVE_TEXT_RESYNC_ACTIVE = 11;
+    LIVE_TEXT_RESYNC_NONE = 12;
   }
 
   optional uint64 timestamp = 1;

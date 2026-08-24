@@ -950,6 +950,9 @@ public class SignalServiceMessageSender {
     else if (message.isLiveTextDecline()) builder.action(TypingMessage.Action.LIVE_TEXT_DECLINE);
     else if (message.isLiveTextStop())    builder.action(TypingMessage.Action.LIVE_TEXT_STOP);
     else if (message.isLiveTextUpdate())  builder.action(TypingMessage.Action.LIVE_TEXT_UPDATE);
+    else if (message.isLiveTextResyncRequest()) builder.action(TypingMessage.Action.LIVE_TEXT_RESYNC_REQUEST);
+    else if (message.isLiveTextResyncActive())  builder.action(TypingMessage.Action.LIVE_TEXT_RESYNC_ACTIVE);
+    else if (message.isLiveTextResyncNone())    builder.action(TypingMessage.Action.LIVE_TEXT_RESYNC_NONE);
     else                                throw new IllegalArgumentException("Unknown typing indicator");
 
     if (message.getGroupId().isPresent()) {

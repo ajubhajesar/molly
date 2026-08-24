@@ -641,6 +641,18 @@ open class MessageContentProcessor(private val context: Context) {
       TypingMessage.Action.LIVE_TEXT_UPDATE -> {
         AppDependencies.liveTypingCoordinator.onLiveTextReceived(threadId, senderRecipient, typingMessage.liveText ?: "")
       }
+      TypingMessage.Action.LIVE_TEXT_RESYNC_REQUEST -> {
+        Log.d(TAG, "Live-typing RESYNC_REQUEST on thread $threadId")
+        AppDependencies.liveTypingCoordinator.onResyncRequested(threadId, senderRecipient)
+      }
+      TypingMessage.Action.LIVE_TEXT_RESYNC_ACTIVE -> {
+        Log.d(TAG, "Live-typing RESYNC_ACTIVE on thread $threadId")
+        AppDependencies.liveTypingCoordinator.onResyncActiveReceived(threadId, senderRecipient)
+      }
+      TypingMessage.Action.LIVE_TEXT_RESYNC_NONE -> {
+        Log.d(TAG, "Live-typing RESYNC_NONE on thread $threadId")
+        AppDependencies.liveTypingCoordinator.onResyncNoneReceived(threadId, senderRecipient)
+      }
       else -> {
         Log.w(TAG, "Unknown typing action on thread $threadId")
       }
