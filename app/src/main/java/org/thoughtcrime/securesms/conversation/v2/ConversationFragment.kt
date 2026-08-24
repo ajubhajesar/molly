@@ -742,6 +742,13 @@ class ConversationFragment :
     binding.conversationBubbleIndicator.setOnLongClickListener(cyclePresenceStyleListener)
     binding.conversationTextIndicator.setOnLongClickListener(cyclePresenceStyleListener)
 
+    // AJ fork: always-visible button, doesn't depend on a floating indicator being shown at
+    // all - see the layout comment on conversation_presence_style_button for why this exists
+    // as a separate reachable target rather than only the long-press above.
+    binding.conversationPresenceStyleButton.setOnClickListener { view ->
+      showPresenceStylePicker(view)
+    }
+
     if (requireActivity() is ConversationActivity) {
       FullscreenHelper(requireActivity()).showSystemUI()
     }
@@ -1498,7 +1505,6 @@ class ConversationFragment :
 
     presentTypingIndicator()
     presentLiveTypingState()
-    presentOfflineIndicator()
 
     getVoiceNoteMediaController().finishPostpone()
 
@@ -1570,27 +1576,6 @@ class ConversationFragment :
       binding.conversationBanner.hidePinnedMessageStub()
     }
     firstPinRender = false
-  }
-
-  /**
-   * AJ fork: tracks this device's own websocket connection state so updatePresenceIndicator()
-   * can override every style with an "Offline" pill while genuinely disconnected - see there
-   * for why. Any state other than CONNECTED counts as offline (connecting/disconnecting/failed
-   * are all "can't trust presence data right now", not just a clean disconnect).
-   */
-  private fun presentOfflineIndicator() {
-    AppDependencies.authWebSocket.state
-      .observeOn(AndroidSchedulers.mainThread())
-      .subscribeBy(
-        onNext = { state ->
-          val nowOffline = state != org.whispersystems.signalservice.api.websocket.WebSocketConnectionState.CONNECTED
-          if (nowOffline != isOffline) {
-            isOffline = nowOffline
-            updatePresenceIndicator(lastIsTyping, lastIsPresent)
-          }
-        }
-      )
-      .addTo(disposables)
   }
 
   private fun presentTypingIndicator() {
@@ -1733,10 +1718,6 @@ class ConversationFragment :
   // needing to have touched the cycle first. Falling back to 4 is always one long-press away.
   private var pendingLiveStyle: Int = 5
 
-  // AJ fork: true whenever this device's own websocket isn't CONNECTED. Overrides every style
-  // in updatePresenceIndicator() - see presentOfflineIndicator() and the dispatch itself.
-  private var isOffline: Boolean = false
-
   /**
    * AJ fork: dispatches to whichever presence indicator style is active.
    * Long-press on the indicator (wired in onViewCreated) flips the preference
@@ -1746,38 +1727,6 @@ class ConversationFragment :
     lastPresenceActive = isTyping || isPresent
     lastIsTyping = isTyping
     lastIsPresent = isPresent
-
-    // AJ fork: offline overrides every style, unconditionally - no per-style "offline" variant
-    // needed (cat's Lottie asset, bubble's avatar widget are untouched by this), because while
-    // genuinely disconnected no presence/typing/live-text traffic could be arriving regardless
-    // of which style is selected, so there's nothing style-specific left to render honestly.
-    // Reuses the smooth live-text widget's plain-string render path (showLiveTextSmooth) purely
-    // for its reused-view/no-flicker properties - "Offline" is arbitrary static text, not live
-    // typing content. Always shown (not gated on isTyping/isPresent) so the pill - and the
-    // long-press picker on it - stays reachable even when nobody else is present, which is
-    // exactly the situation a stuck/desynced live session needs a manual escape hatch for.
-    if (isOffline) {
-      collapseCatLines()
-      collapseBubble()
-      val text = binding.conversationTextIndicator
-      val wasHidden = text.visibility != View.VISIBLE
-      if (wasHidden) {
-        text.animate().cancel()
-        text.translationY = 0f
-        text.alpha = 1f
-        text.visibility = View.VISIBLE
-        val pad = resources.getDimensionPixelSize(R.dimen.presence_cat_recycler_pad)
-        binding.conversationItemRecycler.setPadding(
-          binding.conversationItemRecycler.paddingLeft,
-          binding.conversationItemRecycler.paddingTop,
-          binding.conversationItemRecycler.paddingRight,
-          pad
-        )
-      }
-      text.setHasWallpaper(args.wallpaper != null)
-      text.showLiveTextSmooth("Offline")
-      return
-    }
 
     val style = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
     val isBubble = style == 2

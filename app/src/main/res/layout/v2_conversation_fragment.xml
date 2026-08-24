@@ -308,6 +308,25 @@
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         tools:visibility="visible" />
 
+    <!-- AJ fork: always-visible presence-style button. The picker used to only be reachable by
+         long-pressing whichever floating indicator above happened to be showing - which meant
+         it was unreachable exactly when a live-typing session was stuck (nothing visible to
+         long-press). This one never depends on typing/presence state at all. End-anchored,
+         opposite side from where the floating pills grow out from the start, so it never
+         visually collides with any of them regardless of which is showing. -->
+    <ImageButton
+        android:id="@+id/conversation_presence_style_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="4dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Presence style"
+        android:padding="6dp"
+        android:src="@drawable/ic_more_vert_conversation_24"
+        app:layout_constraintBottom_toTopOf="@+id/conversation_input_panel"
+        app:layout_constraintEnd_toEndOf="@id/parent_end_guideline" />
+
     <include
         android:id="@+id/conversation_input_panel"
         layout="@layout/conversation_input_panel"
