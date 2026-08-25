@@ -664,6 +664,10 @@ class ConversationFragment :
     // entry in the list (removed - unused; style code 1 stays retired, never offered again).
     // Attached to all three floating views since only one is visible at a time depending on
     // style - whichever is showing must stay long-pressable so the picker is always reachable.
+    // showPresenceStylePicker() itself is a class-level function (below) rather than local to
+    // this block, so the overflow-menu entry (ConversationOptionsMenuCallback.handlePresenceStyle())
+    // can also reach it - the picker no longer depends on a floating indicator being visible to
+    // long-press at all, which is what made it unreachable exactly when a live session was stuck.
     //
     // Live styles (4 classic, 5 smooth) still route through LiveTypingCoordinator for mutual
     // consent exactly as before - picking either one when nothing is active sends a request and
@@ -671,69 +675,6 @@ class ConversationFragment :
     // are the same consented session, just two independent render paths (4 untouched/original,
     // 5 rewritten for smoothness). Picking any non-live style while a live session is active or
     // pending ends it - no silent leftover request on either side.
-    fun showPresenceStylePicker(anchor: View) {
-      val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING ||
-        (binding.conversationBubbleIndicator as ConversationTypingView).isActive() ||
-        binding.conversationTextIndicator.isActive
-      val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
-
-      fun label(id: Int, name: String) = if (id == current) "$name ✓" else name
-
-      val popup = android.widget.PopupMenu(requireContext(), anchor)
-      popup.menu.add(0, 0, 0, label(0, "Cat"))
-      popup.menu.add(0, 2, 1, label(2, "Bubble"))
-      popup.menu.add(0, 3, 2, label(3, "Text"))
-      popup.menu.add(0, 4, 3, label(4, "Live (classic)"))
-      popup.menu.add(0, 5, 4, label(5, "Live (smooth)"))
-
-      popup.setOnMenuItemClickListener { item ->
-        val target = item.itemId
-        if (target == current) return@setOnMenuItemClickListener true
-
-        if (target == 4 || target == 5) {
-          val variantLabel = if (target == 5) "smooth" else "classic"
-          when (AppDependencies.liveTypingCoordinator.currentState(args.threadId)) {
-            org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE -> {
-              styleBeforeLive = current
-              pendingLiveStyle = target
-              AppDependencies.liveTypingCoordinator.requestLiveTyping(args.threadId)
-              Toast.makeText(requireContext(), "Live typing ($variantLabel) requested — waiting for them to accept", Toast.LENGTH_SHORT).show()
-            }
-            org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE -> {
-              // Already consented - switching render variant is purely local, no new request.
-              pendingLiveStyle = target
-              org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), target)
-              Toast.makeText(requireContext(), "Presence: live style ($variantLabel)", Toast.LENGTH_SHORT).show()
-              if (lastPresenceActive) updatePresenceIndicator(wasTyping, true)
-            }
-            else -> {
-              Toast.makeText(requireContext(), "Live typing request already pending", Toast.LENGTH_SHORT).show()
-            }
-          }
-          return@setOnMenuItemClickListener true
-        }
-
-        if (current == 4 || current == 5) {
-          // Leaving live style - end whatever session or pending request is in flight.
-          AppDependencies.liveTypingCoordinator.stopLiveTyping(args.threadId)
-        }
-
-        org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), target)
-        val label = when (target) {
-          2 -> "Presence: bubble style"
-          3 -> "Presence: text style"
-          else -> "Presence: cat style"
-        }
-        Toast.makeText(requireContext(), label, Toast.LENGTH_SHORT).show()
-        if (lastPresenceActive) {
-          updatePresenceIndicator(wasTyping, true)
-        }
-        true
-      }
-
-      popup.show()
-    }
-
     val cyclePresenceStyleListener = View.OnLongClickListener { view ->
       showPresenceStylePicker(view)
       true
@@ -741,13 +682,6 @@ class ConversationFragment :
     binding.conversationPresenceIndicator.setOnLongClickListener(cyclePresenceStyleListener)
     binding.conversationBubbleIndicator.setOnLongClickListener(cyclePresenceStyleListener)
     binding.conversationTextIndicator.setOnLongClickListener(cyclePresenceStyleListener)
-
-    // AJ fork: always-visible button, doesn't depend on a floating indicator being shown at
-    // all - see the layout comment on conversation_presence_style_button for why this exists
-    // as a separate reachable target rather than only the long-press above.
-    binding.conversationPresenceStyleButton.setOnClickListener { view ->
-      showPresenceStylePicker(view)
-    }
 
     if (requireActivity() is ConversationActivity) {
       FullscreenHelper(requireActivity()).showSystemUI()
@@ -1717,6 +1651,85 @@ class ConversationFragment :
   // a variant; that choice is always local, same as every other style) lands there without
   // needing to have touched the cycle first. Falling back to 4 is always one long-press away.
   private var pendingLiveStyle: Int = 5
+
+  /**
+   * AJ fork: opens the style picker (cat / bubble / text / live classic / live smooth), current
+   * one marked. Picks directly rather than stepping through a fixed order, and has no "lines"
+   * entry (removed - unused; style code 1 stays retired). Called from both the long-press
+   * listener on whichever floating indicator is currently showing (onViewCreated) and the
+   * "Presence style" overflow-menu entry (ConversationOptionsMenuCallback.handlePresenceStyle())
+   * - the latter exists precisely so this is reachable even when nothing is showing to
+   * long-press, which is what made it unreachable exactly when a live session was stuck.
+   *
+   * Live styles (4 classic, 5 smooth) still route through LiveTypingCoordinator for mutual
+   * consent exactly as before - picking either one when nothing is active sends a request and
+   * waits; picking one while ACTIVE is a free local render switch, no re-request, since both are
+   * the same consented session, just two independent render paths (4 untouched/original, 5
+   * rewritten for smoothness). Picking any non-live style while a live session is active or
+   * pending ends it - no silent leftover request on either side.
+   */
+  private fun showPresenceStylePicker(anchor: View) {
+    val wasTyping = catUiState == CatUiState.AWAKE || catUiState == CatUiState.WAKING ||
+      (binding.conversationBubbleIndicator as ConversationTypingView).isActive() ||
+      binding.conversationTextIndicator.isActive
+    val current = org.thoughtcrime.securesms.util.TextSecurePreferences.getPresenceStyle(requireContext())
+
+    fun label(id: Int, name: String) = if (id == current) "$name ✓" else name
+
+    val popup = android.widget.PopupMenu(requireContext(), anchor)
+    popup.menu.add(0, 0, 0, label(0, "Cat"))
+    popup.menu.add(0, 2, 1, label(2, "Bubble"))
+    popup.menu.add(0, 3, 2, label(3, "Text"))
+    popup.menu.add(0, 4, 3, label(4, "Live (classic)"))
+    popup.menu.add(0, 5, 4, label(5, "Live (smooth)"))
+
+    popup.setOnMenuItemClickListener { item ->
+      val target = item.itemId
+      if (target == current) return@setOnMenuItemClickListener true
+
+      if (target == 4 || target == 5) {
+        val variantLabel = if (target == 5) "smooth" else "classic"
+        when (AppDependencies.liveTypingCoordinator.currentState(args.threadId)) {
+          org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.NONE -> {
+            styleBeforeLive = current
+            pendingLiveStyle = target
+            AppDependencies.liveTypingCoordinator.requestLiveTyping(args.threadId)
+            Toast.makeText(requireContext(), "Live typing ($variantLabel) requested — waiting for them to accept", Toast.LENGTH_SHORT).show()
+          }
+          org.thoughtcrime.securesms.components.LiveTypingCoordinator.State.ACTIVE -> {
+            // Already consented - switching render variant is purely local, no new request.
+            pendingLiveStyle = target
+            org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), target)
+            Toast.makeText(requireContext(), "Presence: live style ($variantLabel)", Toast.LENGTH_SHORT).show()
+            if (lastPresenceActive) updatePresenceIndicator(wasTyping, true)
+          }
+          else -> {
+            Toast.makeText(requireContext(), "Live typing request already pending", Toast.LENGTH_SHORT).show()
+          }
+        }
+        return@setOnMenuItemClickListener true
+      }
+
+      if (current == 4 || current == 5) {
+        // Leaving live style - end whatever session or pending request is in flight.
+        AppDependencies.liveTypingCoordinator.stopLiveTyping(args.threadId)
+      }
+
+      org.thoughtcrime.securesms.util.TextSecurePreferences.setPresenceStyle(requireContext(), target)
+      val label = when (target) {
+        2 -> "Presence: bubble style"
+        3 -> "Presence: text style"
+        else -> "Presence: cat style"
+      }
+      Toast.makeText(requireContext(), label, Toast.LENGTH_SHORT).show()
+      if (lastPresenceActive) {
+        updatePresenceIndicator(wasTyping, true)
+      }
+      true
+    }
+
+    popup.show()
+  }
 
   /**
    * AJ fork: dispatches to whichever presence indicator style is active.
@@ -4892,6 +4905,13 @@ class ConversationFragment :
 
     override fun handleDeleteConversation() {
       onDeleteConversation()
+    }
+
+    // AJ fork: menu selections have no clicked View of their own to anchor a PopupMenu against
+    // (unlike the long-press paths, which pass the indicator that was pressed) - the toolbar is
+    // the nearest reasonable anchor for something opened from the toolbar's own overflow menu.
+    override fun handlePresenceStyle() {
+      showPresenceStylePicker(binding.toolbar)
     }
 
     override fun handleExportChat() {

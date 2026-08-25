@@ -228,6 +228,7 @@ internal object ConversationOptionsMenu {
         R.id.menu_report_spam -> callback.handleReportSpam()
         R.id.menu_accept -> callback.handleMessageRequestAccept()
         R.id.menu_delete_chat -> callback.handleDeleteConversation()
+        R.id.menu_presence_style -> callback.handlePresenceStyle()
         R.id.edittext_bold,
         R.id.edittext_italic,
         R.id.edittext_strikethrough,
@@ -301,5 +302,6 @@ internal object ConversationOptionsMenu {
     fun handleMessageRequestAccept()
     fun handleDeleteConversation()
     fun handleExportChat()
+    fun handlePresenceStyle()
   }
 }

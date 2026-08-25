@@ -10,6 +10,13 @@
         android:id="@+id/menu_conversation_settings"
         android:title="@string/conversation__menu_conversation_settings" />
 
+    <!-- AJ fork: opens the presence-style picker (cat/bubble/text/live). Doesn't depend on any
+         floating indicator being visible to long-press - reachable here regardless of typing/
+         presence state, which matters most exactly when a live-typing session is stuck. -->
+    <item
+        android:id="@+id/menu_presence_style"
+        android:title="Presence style" />
+
 
     <item
         android:id="@+id/menu_search"
