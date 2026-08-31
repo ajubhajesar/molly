@@ -683,6 +683,52 @@ class ConversationFragment :
     binding.conversationBubbleIndicator.setOnLongClickListener(cyclePresenceStyleListener)
     binding.conversationTextIndicator.setOnLongClickListener(cyclePresenceStyleListener)
 
+    // AJ fork: voice typing, ported from the BulkSendKeyboard IME - see VoiceTypingController.
+    // Long-press the emoji toggle to start/stop; short tap keeps its normal behavior untouched.
+    // Chosen deliberately as the trigger instead of a new dedicated icon: emoji_toggle is the
+    // one button in this row that's always visible regardless of typing/presence/compose-text
+    // state (unlike the camera/voice-message-record icons, which hide once there's text - and
+    // dictating into a message you've already started typing needs to keep working). A
+    // dedicated mic icon with its own dedicated position is a reasonable follow-up once this is
+    // actually visible on-device to place it against; this avoids guessing at layout placement
+    // sight-unseen in the meantime.
+    // InputPanel doesn't expose emoji_toggle through a public getter, and the top-level binding
+    // doesn't reach through the <include>'s custom-view root either - findViewById by the
+    // layout's own R.id is the correct, minimal way to reach it without modifying InputPanel.
+    val emojiToggleView = requireView().findViewById<View>(R.id.emoji_toggle)
+    emojiToggleView?.setOnLongClickListener {
+      if (voiceTypingController == null) {
+        voiceTypingController = VoiceTypingController(requireContext(), composeText) { listening ->
+          Toast.makeText(
+            requireContext(),
+            if (listening) "Voice typing on (${voiceTypingController?.languageLabel()})" else "Voice typing off",
+            Toast.LENGTH_SHORT
+          ).show()
+        }
+      }
+      val controller = voiceTypingController!!
+
+      if (controller.isListening()) {
+        controller.stop()
+      } else if (controller.hasPermission()) {
+        controller.start()
+      } else {
+        Permissions
+          .with(this@ConversationFragment)
+          .request(Manifest.permission.RECORD_AUDIO)
+          .ifNecessary()
+          .withRationaleDialog(
+            getString(R.string.ConversationActivity_allow_access_microphone),
+            "Voice typing needs microphone access to turn what you say into text.",
+            R.drawable.ic_mic_24
+          )
+          .onAllGranted { controller.start() }
+          .onAnyDenied { Toast.makeText(requireContext(), R.string.ConversationActivity_signal_needs_microphone_access_voice_message, Toast.LENGTH_LONG).show() }
+          .execute()
+      }
+      true
+    }
+
     if (requireActivity() is ConversationActivity) {
       FullscreenHelper(requireActivity()).showSystemUI()
     }
@@ -845,6 +891,9 @@ class ConversationFragment :
   }
 
   override fun onDestroyView() {
+    voiceTypingController?.destroy()
+    voiceTypingController = null
+
     viewModel.collapseAllEvents()
     keyboardEvents?.let {
       container.removeInputListener(it)
@@ -1651,6 +1700,12 @@ class ConversationFragment :
   // a variant; that choice is always local, same as every other style) lands there without
   // needing to have touched the cycle first. Falling back to 4 is always one long-press away.
   private var pendingLiveStyle: Int = 5
+
+  // AJ fork: in-app voice typing, ported from the BulkSendKeyboard IME - see
+  // VoiceTypingController for the full reasoning. Created lazily on first use (needs
+  // composeText, which isn't available until the view is inflated), torn down in
+  // onDestroyView so the mic/recognizer never outlives this screen.
+  private var voiceTypingController: VoiceTypingController? = null
 
   /**
    * AJ fork: opens the style picker (cat / bubble / text / live classic / live smooth), current
