@@ -151,6 +151,7 @@ import org.thoughtcrime.securesms.components.ConversationTypingView
 import org.thoughtcrime.securesms.components.TypingStatusRepository
 import org.thoughtcrime.securesms.components.SignalProgressDialog
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
+import org.thoughtcrime.securesms.components.VoiceTypingController
 import org.thoughtcrime.securesms.components.compose.ActionModeTopBarView
 import org.thoughtcrime.securesms.components.compose.DeleteSyncEducationDialog
 import org.thoughtcrime.securesms.components.emoji.EmojiEventListener
