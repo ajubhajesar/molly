@@ -46,6 +46,13 @@ import java.io.IOException
  * lets the Fragment decide how a message actually goes out.
  */
 enum class VoiceTypingState { IDLE, LISTENING, GAP }
+
+/** Pause length before a segment finalizes. Normal matches the original keyboard's fixed values. */
+enum class MicSensitivity(val completeSilenceMs: Int, val possiblyCompleteSilenceMs: Int) {
+  FAST(700, 500),
+  NORMAL(1100, 800),
+  SLOW(1600, 1200)
+}
 class VoiceTypingController(
   private val context: Context,
   private val composeText: EditText,
@@ -59,10 +66,16 @@ class VoiceTypingController(
     private const val AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT
     private const val PREFS_NAME = "voice_typing_prefs"
     private const val PREF_VOICE_LANG = "voice_lang"
+    private const val PREF_AUTO_SEND = "auto_send"
+    private const val PREF_SENSITIVITY = "mic_sensitivity"
   }
 
   private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
   private var voiceLang: String = prefs.getString(PREF_VOICE_LANG, "gu") ?: "gu"
+  private var autoSendEnabled: Boolean = prefs.getBoolean(PREF_AUTO_SEND, true)
+  private var micSensitivity: MicSensitivity = MicSensitivity.entries.getOrElse(
+    prefs.getInt(PREF_SENSITIVITY, MicSensitivity.NORMAL.ordinal)
+  ) { MicSensitivity.NORMAL }
 
   private var speechRecognizer: SpeechRecognizer? = null
   private var listening = false
@@ -103,6 +116,24 @@ class VoiceTypingController(
     else -> "GU"
   }
 
+  fun isAutoSendEnabled(): Boolean = autoSendEnabled
+
+  fun toggleAutoSend(): Boolean {
+    autoSendEnabled = !autoSendEnabled
+    prefs.edit().putBoolean(PREF_AUTO_SEND, autoSendEnabled).apply()
+    return autoSendEnabled
+  }
+
+  fun sensitivityLabel(): String = micSensitivity.name.lowercase().replaceFirstChar { it.uppercase() }
+
+  /** Fast -> Normal -> Slow -> Fast. Takes effect on the next start()/restart, not mid-session. */
+  fun cycleSensitivity(): String {
+    val values = MicSensitivity.entries
+    micSensitivity = values[(micSensitivity.ordinal + 1) % values.size]
+    prefs.edit().putInt(PREF_SENSITIVITY, micSensitivity.ordinal).apply()
+    return sensitivityLabel()
+  }
+
   fun toggle() {
     if (listening) stop() else start()
   }
@@ -135,8 +166,8 @@ class VoiceTypingController(
     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, bcp47)
     intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
     intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-    intent.putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 1100)
-    intent.putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 800)
+    intent.putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", micSensitivity.completeSilenceMs)
+    intent.putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", micSensitivity.possiblyCompleteSilenceMs)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       val audioSource = startAudioSourcePipeline()
@@ -294,11 +325,11 @@ class VoiceTypingController(
   }
 
   /**
-   * Inserts recognized text at the current cursor position, then fires onAutoSend() - mirrors
-   * the original keyboard's handleTranscript(), which committed and sent each segment at the
-   * same pause boundary. Editable.replace() on a start==end range is a plain insert; the cursor
-   * lands after the inserted text, so successive segments append in reading order without extra
-   * bookkeeping here.
+   * Inserts recognized text at the current cursor position, then fires onAutoSend() unless the
+   * user has toggled auto-send off - mirrors the original keyboard's handleTranscript(), which
+   * committed and sent each segment at the same pause boundary. Editable.replace() on a
+   * start==end range is a plain insert; the cursor lands after the inserted text, so successive
+   * segments append in reading order without extra bookkeeping here.
    */
   private fun insertTranscript(transcript: String?) {
     if (transcript.isNullOrBlank()) return
@@ -307,7 +338,7 @@ class VoiceTypingController(
     val start = composeText.selectionStart.coerceIn(0, editable.length)
     val end = composeText.selectionEnd.coerceIn(0, editable.length)
     editable.replace(minOf(start, end), maxOf(start, end), output)
-    onAutoSend()
+    if (autoSendEnabled) onAutoSend()
   }
 
   private val recognitionListener = object : RecognitionListener {

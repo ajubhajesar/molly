@@ -114,12 +114,133 @@
         app:layout_constraintTop_toBottomOf="@+id/quote_view"
         app:linkpreview_type="compose" />
 
+    <!--
+      AJ fork: voice typing status bar, ported from BulkSendKeyboard's momoControls
+      (com.simple.zt/BulkSendKeyboard.java). GONE until the first mic activation (see
+      ConversationFragment.kt), then persists - collapsedHandle/bar toggle inside it exactly
+      like the original: thin strip by default, tap to reveal the dot+status+lang row, tap the
+      status text to collapse back.
+    -->
+    <LinearLayout
+        android:id="@+id/voice_typing_bar_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="6dp"
+        android:layout_marginTop="6dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/compose_bubble"
+        app:layout_constraintStart_toStartOf="@+id/compose_bubble"
+        app:layout_constraintTop_toBottomOf="@+id/link_preview"
+        tools:visibility="visible">
+
+        <View
+            android:id="@+id/voice_typing_collapsed_handle"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:background="@drawable/rounded_rectangle_secondary_18" />
+
+        <LinearLayout
+            android:id="@+id/voice_typing_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/rounded_rectangle_secondary_18"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="8dp"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/voice_typing_status_dot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/circle_tintable" />
+
+            <TextView
+                android:id="@+id/voice_typing_status_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="13sp"
+                tools:text="Ready" />
+
+            <TextView
+                android:id="@+id/voice_typing_lang_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="36dp"
+                android:background="@drawable/circle_tintable"
+                android:gravity="center"
+                android:padding="6dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textStyle="bold"
+                tools:text="GU" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/voice_typing_expanded_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/voice_typing_autosend_toggle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:background="@drawable/rounded_rectangle_secondary_18"
+                android:gravity="center"
+                android:paddingVertical="8dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="12sp"
+                tools:text="Auto-send: ON" />
+
+            <TextView
+                android:id="@+id/voice_typing_sensitivity_btn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="4dp"
+                android:layout_weight="1"
+                android:background="@drawable/rounded_rectangle_secondary_18"
+                android:gravity="center"
+                android:paddingVertical="8dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="12sp"
+                tools:text="Sensitivity: Normal" />
+
+            <TextView
+                android:id="@+id/voice_typing_lang_cycle_btn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:background="@drawable/rounded_rectangle_secondary_18"
+                android:gravity="center"
+                android:paddingVertical="8dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="12sp"
+                tools:text="Language: GU" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/compose_bubble_top_elements"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:barrierDirection="bottom"
-        app:constraint_referenced_ids="edit_message_title,edit_message_thumbnail,quote_view,link_preview" />
+        app:constraint_referenced_ids="edit_message_title,edit_message_thumbnail,quote_view,link_preview,voice_typing_bar_container" />
 
     <org.thoughtcrime.securesms.components.emoji.EmojiToggle
         android:id="@+id/emoji_toggle"
