@@ -38,17 +38,19 @@ import java.io.IOException
  * ported as-is from the original - that's the part that makes this "voice typing" rather than
  * "dictate one sentence and stop," and it's already solved/tuned there.
  *
- * Deliberately NOT ported: the original's send-on-every-pause behavior - each recognized phrase
- * was immediately committed *and* sent as its own message, no review. That's a different risk
- * profile inside a real messaging app than inside a keyboard demo: a mis-heard word there stays
- * a keyboard buffer; here it would be a real, delivered message to a real contact. This
- * controller only ever inserts into the draft at the cursor - sending stays a separate,
- * deliberate action. Can be wired back in explicitly later if actually wanted.
+ * Auto-send: ported as-is from the original's fireSend() - each recognized segment is committed
+ * *and* sent immediately, no review step. AJ call: same risk profile as the keyboard (a
+ * mis-heard word becomes a real delivered message), accepted deliberately rather than a
+ * carried-over caution from the first port. Sending itself is not this controller's job - it
+ * has no notion of Molly's send pipeline - so it calls back to the host via onAutoSend() and
+ * lets the Fragment decide how a message actually goes out.
  */
+enum class VoiceTypingState { IDLE, LISTENING, GAP }
 class VoiceTypingController(
   private val context: Context,
   private val composeText: EditText,
-  private val onListeningChanged: (Boolean) -> Unit
+  private val onStateChanged: (VoiceTypingState) -> Unit,
+  private val onAutoSend: () -> Unit
 ) {
 
   companion object {
@@ -158,14 +160,14 @@ class VoiceTypingController(
 
     recognizer.startListening(intent)
     listening = true
-    onListeningChanged(true)
+    onStateChanged(VoiceTypingState.LISTENING)
   }
 
   fun stop() {
     listening = false
     stopAudioSourcePipeline()
     releaseRecognizer()
-    onListeningChanged(false)
+    onStateChanged(VoiceTypingState.IDLE)
   }
 
   /** Call from the host Fragment's onDestroyView so the mic/recognizer never outlives the screen. */
@@ -276,6 +278,10 @@ class VoiceTypingController(
   }
 
   private fun restartListening(delayMs: Long = 60) {
+    // Mic briefly drops between segments here - flag it distinctly from LISTENING (matches the
+    // original's DOT_GAP) so the status light doesn't read "actively hearing you" during the gap.
+    // start() flips it back to LISTENING once the new session actually opens.
+    if (listening) onStateChanged(VoiceTypingState.GAP)
     mainHandler.postDelayed({
       if (listening) start()
     }, delayMs)
@@ -288,11 +294,11 @@ class VoiceTypingController(
   }
 
   /**
-   * Inserts recognized text at the current cursor position and leaves it there for review -
-   * see the class doc for why this deliberately does not auto-send, unlike the original
-   * keyboard's handleTranscript(). Editable.replace() on a start==end range is a plain insert;
-   * the cursor lands after the inserted text, so successive segments append in reading order
-   * without extra bookkeeping here.
+   * Inserts recognized text at the current cursor position, then fires onAutoSend() - mirrors
+   * the original keyboard's handleTranscript(), which committed and sent each segment at the
+   * same pause boundary. Editable.replace() on a start==end range is a plain insert; the cursor
+   * lands after the inserted text, so successive segments append in reading order without extra
+   * bookkeeping here.
    */
   private fun insertTranscript(transcript: String?) {
     if (transcript.isNullOrBlank()) return
@@ -301,6 +307,7 @@ class VoiceTypingController(
     val start = composeText.selectionStart.coerceIn(0, editable.length)
     val end = composeText.selectionEnd.coerceIn(0, editable.length)
     editable.replace(minOf(start, end), maxOf(start, end), output)
+    onAutoSend()
   }
 
   private val recognitionListener = object : RecognitionListener {

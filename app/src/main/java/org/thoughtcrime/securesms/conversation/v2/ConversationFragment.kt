@@ -40,6 +40,7 @@ import android.view.WindowManager
 import android.view.animation.AnimationUtils
 import android.view.inputmethod.EditorInfo
 import android.widget.ImageButton
+import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.TextView.OnEditorActionListener
 import android.widget.Toast
@@ -152,6 +153,7 @@ import org.thoughtcrime.securesms.components.TypingStatusRepository
 import org.thoughtcrime.securesms.components.SignalProgressDialog
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.components.VoiceTypingController
+import org.thoughtcrime.securesms.components.VoiceTypingState
 import org.thoughtcrime.securesms.components.compose.ActionModeTopBarView
 import org.thoughtcrime.securesms.components.compose.DeleteSyncEducationDialog
 import org.thoughtcrime.securesms.components.emoji.EmojiEventListener
@@ -699,13 +701,31 @@ class ConversationFragment :
     val emojiToggleView = requireView().findViewById<View>(R.id.emoji_toggle)
     emojiToggleView?.setOnLongClickListener {
       if (voiceTypingController == null) {
-        voiceTypingController = VoiceTypingController(requireContext(), composeText) { listening ->
-          Toast.makeText(
-            requireContext(),
-            if (listening) "Voice typing on (${voiceTypingController?.languageLabel()})" else "Voice typing off",
-            Toast.LENGTH_SHORT
-          ).show()
-        }
+        voiceTypingController = VoiceTypingController(
+          requireContext(),
+          composeText,
+          onStateChanged = { state ->
+            // Status light: tint emoji_toggle's own icon instead of adding a new view - colors
+            // match the original keyboard's DOT_IDLE/DOT_LIVE/DOT_GAP.
+            val iconView = emojiToggleView as? android.widget.ImageView
+            when (state) {
+              VoiceTypingState.IDLE -> {
+                iconView?.clearColorFilter()
+                hideVoiceTypingMenuButton()
+                Toast.makeText(requireContext(), "Voice typing off", Toast.LENGTH_SHORT).show()
+              }
+              VoiceTypingState.LISTENING -> {
+                iconView?.setColorFilter(0xFF2ECC71.toInt())
+                showVoiceTypingMenuButton(emojiToggleView)
+                Toast.makeText(requireContext(), "Voice typing on (${voiceTypingController?.languageLabel()})", Toast.LENGTH_SHORT).show()
+              }
+              VoiceTypingState.GAP -> {
+                iconView?.setColorFilter(0xFFF5A623.toInt())
+              }
+            }
+          },
+          onAutoSend = { sendMessage() }
+        )
       }
       val controller = voiceTypingController!!
 
@@ -894,6 +914,7 @@ class ConversationFragment :
   override fun onDestroyView() {
     voiceTypingController?.destroy()
     voiceTypingController = null
+    hideVoiceTypingMenuButton()
 
     viewModel.collapseAllEvents()
     keyboardEvents?.let {
@@ -1707,6 +1728,44 @@ class ConversationFragment :
   // composeText, which isn't available until the view is inflated), torn down in
   // onDestroyView so the mic/recognizer never outlives this screen.
   private var voiceTypingController: VoiceTypingController? = null
+
+  // AJ fork: small "..." button that only exists while voice typing is listening - opens the
+  // voice typing menu (language cycle for now, room for more settings later). Built as a
+  // PopupWindow anchored off emoji_toggle rather than a real ConstraintLayout sibling, so it
+  // needs zero changes to conversation_input_panel.xml; shows on LISTENING, dismissed on IDLE.
+  private var voiceTypingMenuButton: PopupWindow? = null
+
+  private fun showVoiceTypingMenuButton(anchor: View) {
+    if (voiceTypingMenuButton?.isShowing == true) return
+    val button = ImageButton(requireContext()).apply {
+      setImageResource(R.drawable.ic_more_vert_24)
+      background = null
+      setColorFilter(0xFF2ECC71.toInt())
+      setOnClickListener { showVoiceTypingMenu(this) }
+    }
+    val popup = PopupWindow(button, 36.dp, anchor.height, false)
+    popup.showAsDropDown(anchor, anchor.width, -anchor.height)
+    voiceTypingMenuButton = popup
+  }
+
+  private fun hideVoiceTypingMenuButton() {
+    voiceTypingMenuButton?.dismiss()
+    voiceTypingMenuButton = null
+  }
+
+  private fun showVoiceTypingMenu(anchor: View) {
+    val controller = voiceTypingController ?: return
+    val popup = android.widget.PopupMenu(requireContext(), anchor)
+    popup.menu.add(0, 0, 0, "Language: ${controller.languageLabel()} (tap to cycle)")
+    popup.setOnMenuItemClickListener { item ->
+      if (item.itemId == 0) {
+        val newLabel = controller.cycleLanguage()
+        Toast.makeText(requireContext(), "Voice typing language: $newLabel", Toast.LENGTH_SHORT).show()
+      }
+      true
+    }
+    popup.show()
+  }
 
   /**
    * AJ fork: opens the style picker (cat / bubble / text / live classic / live smooth), current
